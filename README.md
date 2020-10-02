@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.com/hustzxd/QuantizedPyTorch.svg?token=ybqJg4VpHTL3DxLyVP9H&branch=dnq)](https://travis-ci.com/hustzxd/QuantizedPyTorch) [![Documentation Status](https://readthedocs.org/projects/quanoview/badge/?version=latest)](https://quanoview.readthedocs.io/en/latest/?badge=latest)
+[![Build Status](https://travis-ci.com/hustzxd/LLSQ.svg?branch=efficient_pytorch)](https://travis-ci.com/hustzxd/LLSQ) [![Documentation Status](https://readthedocs.org/projects/quanoview/badge/?version=latest)](https://quanoview.readthedocs.io/en/latest/?badge=latest)
 # EfficientPyTorch
 
 ## [Install](docs/install.md)
