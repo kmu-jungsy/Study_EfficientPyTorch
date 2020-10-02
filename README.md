@@ -1,11 +1,11 @@
 [![Build Status](https://travis-ci.com/hustzxd/QuantizedPyTorch.svg?token=ybqJg4VpHTL3DxLyVP9H&branch=dnq)](https://travis-ci.com/hustzxd/QuantizedPyTorch) [![Documentation Status](https://readthedocs.org/projects/quanoview/badge/?version=latest)](https://quanoview.readthedocs.io/en/latest/?badge=latest)
-# QuantizedPyTorch (clean version)
+# EfficientPyTorch
 
 ## [Install](docs/install.md)
 ```bash
-git clone https://github.com/wangying-ict/LLSQ.git
+git clone https://github.com/hustzxd/EfficientPyTorch.git
 
-cd LLSQ
+cd EfficientPyTorch
 export PYTHONPATH=$PYTHONPATH:`pwd`
 pip install -r requirements.txt
 ```
