@@ -9,14 +9,11 @@ cd EfficientPyTorch
 export PYTHONPATH=$PYTHONPATH:`pwd`
 pip install -r requirements.txt
 ```
-
+ 
 ## Main Features
 
 - [x] [Learned Linear Symmetric Quantization (LLSQ)](docs/llsq.md)
 - [x] [Learned Step Quantization (LSQ)](docs/lsq.md)
-- [x] [Sparisity and Quantization (SQ)](docs/sq.md)
-- [ ] [ADMM level pruner](docs/admm_level_pruner.md)
-- [ ] [ADMM NPU_pattern pruner](docs/admm_npu_pruner.md)
 
 
 ## [References](docs/references.md)

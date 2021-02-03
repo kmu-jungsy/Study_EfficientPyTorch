@@ -9,14 +9,8 @@ from .bwn import *
 from .lsq import *
 from .llsq import *
 from .svd import *
-from .convbn_fold import *
 from .rnn_q import *
 from .activation import *
-from .dnq import *
-from .sq import *
-from .npu_structured_pruner import *
-from .admm_loss import *
-
 
 class QuantizationFactory(object):
     def __init__(self, quan_type, nbits_w, nbits_a, q_mode=Qmodes.layer_wise, signed=False, floor=False):
