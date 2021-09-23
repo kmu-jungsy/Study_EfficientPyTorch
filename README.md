@@ -8,7 +8,6 @@ git clone https://github.com/hustzxd/EfficientPyTorch.git
 cd EfficientPyTorch
 # ./setup.sh
 source setup.sh
-python setup.py install
 pip install -r requirements.txt
 ```
 
