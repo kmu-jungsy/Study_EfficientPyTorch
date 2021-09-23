@@ -1,7 +1,7 @@
 [![Build Status](https://travis-ci.com/hustzxd/LLSQ.svg?branch=efficient_pytorch)](https://travis-ci.com/hustzxd/LLSQ) [![Documentation Status](https://readthedocs.org/projects/quanoview/badge/?version=latest)](https://quanoview.readthedocs.io/en/latest/?badge=latest)
 # EfficientPyTorch
 
-## [Install](docs/install.md)
+## Install
 ```bash
 git clone https://github.com/hustzxd/EfficientPyTorch.git
 
