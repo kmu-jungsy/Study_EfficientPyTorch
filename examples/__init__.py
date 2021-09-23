@@ -1,29 +1,36 @@
 import argparse
-import json
+import datetime
+import hashlib
 import os
+import random
 import shutil
 import time
 import warnings
-from collections import OrderedDict
 
+import google.protobuf as pb
+import google.protobuf.text_format
+import models._modules as my_nn
 import numpy as np
+import plotly.graph_objects as go
 import torch
+import torch.backends.cudnn as cudnn
+import torch.distributed as dist
+import torch.multiprocessing as mp
 import torch.nn.parallel
 import torch.optim
 import torch.utils.data
 import torch.utils.data.distributed
 import torchvision
 import torchvision.transforms as transforms
+from proto import efficient_pytorch_pb2 as eppb
+from pytorchcv.model_provider import get_model as ptcv_get_model
 from tensorboardX import SummaryWriter
+from utils import wrapper
+from utils.ptflops import get_model_complexity_info
 from warmup_scheduler import GradualWarmupScheduler
 
-import models._modules as my_nn
-from utils import wrapper
-from utils.dnq import dnq_scheduler
-from utils.ptflops import get_model_complexity_info
-
-str_q_mode_map = {'layer_wise': my_nn.Qmodes.layer_wise,
-                  'kernel_wise': my_nn.Qmodes.kernel_wise}
+str_q_mode_map = {eppb.Qmode.layer_wise: my_nn.Qmodes.layer_wise,
+                  eppb.Qmode.kernel_wise: my_nn.Qmodes.kernel_wise}
 
 
 def get_base_parser():
@@ -33,151 +40,157 @@ def get_base_parser():
 
     print('Please do not import ipdb when using distributed training')
 
-    q_modes_choice = sorted(['kernel_wise', 'layer_wise'])
     parser = argparse.ArgumentParser(description='PyTorch Training')
-    parser.add_argument('data', metavar='DIR',
-                        help='path to dataset')
-    parser.add_argument('-j', '--workers', default=16, type=int, metavar='N',
-                        help='number of data loading workers (default: 4)')
-    parser.add_argument('-b', '--batch-size', default=256, type=int,
-                        metavar='N',
-                        help='mini-batch size (default: 256), this is the total '
-                             'batch size of all GPUs on the current node when '
-                             'using Data Parallel or Distributed Data Parallel')
-    parser.add_argument('-p', '--print-freq', default=50, type=int,
-                        metavar='N', help='print frequency (default: 50)')
-    parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
-                        help='evaluate model on validation set')
+    parser.add_argument('--hp', type=str,
+                        help='File path to save hyperparameter configuration')
 
-    # ==========learning rate schedule<<<<<<<<<<<<<
-    parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
-                        metavar='LR', help='initial learning rate', dest='lr')
-    parser.add_argument('--warmup-epoch', type=int, default=-3, help='warm up epoch')
-    parser.add_argument('--warmup-multiplier', type=float, default=10, help='warm up multiplier')
-
-    parser.add_argument('--epochs', default=90, type=int, metavar='N',
-                        help='number of total epochs to run')
-
-    lr_scheduler_choice = ['StepLR', 'MultiStepLR', 'CosineAnnealingLR']
-    parser.add_argument('--lr-scheduler', default='CosineAnnealingLR', choices=lr_scheduler_choice)
-
-    parser.add_argument('--step-size', default=20, type=int,
-                        help='step size of StepLR')
-    parser.add_argument('--gamma', default=0.1, type=float,
-                        help='lr decay of StepLR or MultiStepLR')
-    parser.add_argument('--milestones', default=[30, 100, 200], nargs='+', type=int,
-                        help='milestones of MultiStepLR')
-    # >>>>>>>>>>>>>>>learning rate schedule END=============
-
-    # =========================DNQ<<<<<<<<<<<<<<<<<<<<<<<<<<<
-    dnq_scheduler_choice = ['MultiStepDNQ']
-    parser.add_argument('--dnq-scheduler', default='MultiStepDNQ', choices=dnq_scheduler_choice)
-    parser.add_argument('--dnq-gamma', default=2, type=float)
-    parser.add_argument('--dnq-milestones', default=[100], nargs='+', type=int,
-                        help='milestones of MultiStepDNQ')
-    # >>>>>>>>>>>>>>>>>>>>>>>>DNQ END=========================
-
-    parser.add_argument('--pretrained', dest='pretrained', action='store_true',
-                        help='use pre-trained model')
-
-    parser.add_argument('--resume', default='', type=str, metavar='PATH',
-                        help='path to latest checkpoint (default: none)')
     parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
                         help='manual epoch number (useful on restarts)')
     parser.add_argument('--resume-after', default='', type=str, metavar='PATH',
                         help='path to latest checkpoint (default: none)')
-    parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
-                        help='momentum')
-    parser.add_argument('--wd', '--weight-decay', default=1e-4, type=float,
-                        metavar='W', help='weight decay (default: 1e-4)',
-                        dest='weight_decay')
-    parser.add_argument('--log-name', default='log', type=str)
-
-    # =====================Generate model key map<<<<<<<<<<<<<<<<<<<<<<<<<<<
-    parser.add_argument('--gen-map', action='store_true', default=False,
-                        help='generate key map for quantized model')
-    parser.add_argument('--original-model', default='', type=str,
-                        help='original model')
-    # >>>>>>>>>>>>>>>>>>>Generate model key map END=======================
 
     parser.add_argument('--bn-fusion', action='store_true', default=False,
                         help='ConvQ + BN fusion')
     parser.add_argument('--resave', action='store_true', default=False,
                         help='resave the model')
 
-    parser.add_argument('--quant-bias-scale', action='store_true', default=False,
-                        help='Add Qcode for scale and quantize bias')
-    parser.add_argument('--extract-inner-data', action='store_true', default=False,
-                        help='Extract inner feature map and weights')
-    parser.add_argument('--export-onnx', action='store_true', default=False,
-                        help='Export model to onnx')
+    parser.add_argument('--gen-layer-info', action='store_true', default=False,
+                        help='whether to generate layer information for latency evaluation on hardware')
 
-    # ===========================multi-gpu training<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-    parser.add_argument('--world-size', default=-1, type=int,
-                        help='number of nodes for distributed training')
-    parser.add_argument('--local_rank', type=int, default=0)
-    parser.add_argument('--rank', default=-1, type=int,
-                        help='node rank for distributed training')
-    parser.add_argument('--dist-url', default='tcp://224.66.41.62:23456', type=str,
-                        help='url used to set up distributed training')
-    parser.add_argument('--dist-backend', default='nccl', type=str,
-                        help='distributed backend')
-    parser.add_argument('--multiprocessing-distributed', action='store_true',
-                        help='Use multi-processing distributed training to launch '
-                             'N processes per node, which has N GPUs. This is the '
-                             'fastest way to use PyTorch for either single node or '
-                             'multi node data parallel training')
-    parser.add_argument('--gpu', default=None, type=int,
-                        help='GPU id to use.')
-    parser.add_argument('--gpus', default=None, type=str,
-                        help='GPUs id to use.You can specify multiple GPUs separated by ,')
-    # >>>>>>>>>>>>>>>>>>>>>>>>>multi-gpu training END==============================
-
-    parser.add_argument('--seed', default=None, type=int,
-                        help='seed for initializing training. ')
-
-    parser.add_argument('--qa', default=0, type=int,
-                        help='quantized activation bit')
-    parser.add_argument('--qw', default=0, type=int,
-                        help='quantized weight bit')
-    parser.add_argument('--q-mode', choices=q_modes_choice, default='kernel_wise',
-                        help='Quantization modes: ' +
-                             ' | '.join(q_modes_choice) +
-                             ' (default: kernel-wise)')
-    parser.add_argument('--l1', action='store_true', default=False,
-                        help='Use l1 error to optimize parameter of quantizer (default: l2)')
-    parser.add_argument('--debug', action='store_true', default=False,
-                        help='save running scale in tensorboard')
-    parser.add_argument('--freeze-bn', action='store_true', default=False, help='Freeze BN')
+    parser.add_argument('--print-histogram', action='store_true', default=False,
+                        help='save histogram of weight in tensorboard')
+    parser.add_argument('--freeze-bn', action='store_true',
+                        default=False, help='Freeze BN')
     return parser
 
 
-def get_lr_scheduler(optimizer, args):
-    # todo: add different scheduler
-    if args.lr_scheduler == 'CosineAnnealingLR':
+def main_s1_set_seed(hp):
+    if hp.HasField('seed'):
+        random.seed(hp.seed)
+        torch.manual_seed(hp.seed)
+        cudnn.deterministic = True
+        warnings.warn('You have chosen to seed training. '
+                      'This will turn on the CUDNN deterministic setting, '
+                      'which can slow down your training considerably! '
+                      'You may see unexpected behavior when restarting '
+                      'from checkpoints.')
+
+
+def main_s2_start_worker(main_worker, args, hp):
+    if args.gpu is not None:
+        warnings.warn('You have chosen a specific GPU. This will completely '
+                      'disable data parallelism.')
+    args.world_size = hp.multi_gpu.world_size
+    if hp.HasField('multi_gpu') and hp.multi_gpu.dist_url == "env://" and args.world_size == -1:
+        args.world_size = int(os.environ["WORLD_SIZE"])
+
+    args.distributed = args.world_size > 1 or (hp.HasField(
+        'multi_gpu') and hp.multi_gpu.multiprocessing_distributed)
+
+    ngpus_per_node = torch.cuda.device_count()
+    print('ngpus_per_node: {}'.format(ngpus_per_node))
+    if hp.HasField('multi_gpu') and hp.multi_gpu.multiprocessing_distributed:
+        # Since we have ngpus_per_node processes per node, the total world_size
+        # needs to be adjusted accordingly
+        args.world_size = ngpus_per_node * args.world_size
+        # Use torch.multiprocessing.spawn to launch distributed processes: the
+        # main_worker process function
+        mp.spawn(main_worker, nprocs=ngpus_per_node,
+                 args=(ngpus_per_node, args))
+
+    else:
+        # Simply call main_worker function
+        main_worker(args.gpu, ngpus_per_node, args)
+
+
+def get_hyperparam(args):
+    assert os.path.exists(args.hp)
+    hp = eppb.HyperParam()
+    with open(args.hp, 'r') as rf:
+        pb.text_format.Merge(rf.read(), hp)
+    return hp
+
+
+def get_freer_gpu():
+    os.system('nvidia-smi -q -d Memory |grep -A4 GPU|grep Free >tmp')
+    memory_available = [int(x.split()[2])
+                        for x in open('tmp', 'r').readlines()]
+    os.system('rm tmp')
+    # TODO; if no gpu, return None
+    try:
+        visible_gpu = os.environ["CUDA_VISIBLE_DEVICES"]
+        memory_visible = []
+        for i in visible_gpu.split(','):
+            memory_visible.append(memory_available[int(i)])
+        return np.argmax(memory_visible)
+    except KeyError:
+        return np.argmax(memory_available)
+
+
+def get_lr_scheduler(optimizer, lr_domain):
+    """
+    Args:
+        optimizer:
+        lr_domain ([proto]): [lr configuration domain] e.g. args.hp args.hp.bit_pruner
+    """
+    if isinstance(lr_domain, argparse.Namespace):
+        lr_domain = lr_domain.hp
+    if lr_domain.lr_scheduler == eppb.LRScheduleType.CosineAnnealingLR:
         print('Use cosine scheduler')
-        scheduler_next = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
-    elif args.lr_scheduler == 'StepLR':
-        print('Use step scheduler, step size: {}, gamma: {}'.format(args.step_size, args.gamma))
-        scheduler_next = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma)
-    elif args.lr_scheduler == 'MultiStepLR':
-        print('Use MultiStepLR scheduler, milestones: {}, gamma: {}'.format(args.milestones, args.gamma))
-        scheduler_next = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.milestones, gamma=args.gamma)
+        scheduler_next = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=lr_domain.epochs)
+    elif lr_domain.lr_scheduler == eppb.LRScheduleType.StepLR:
+        print('Use step scheduler, step size: {}, gamma: {}'.format(
+            lr_domain.step_lr.step_size, lr_domain.step_lr.gamma))
+        scheduler_next = torch.optim.lr_scheduler.StepLR(
+            optimizer, step_size=lr_domain.step_lr.step_size, gamma=lr_domain.step_lr.gamma)
+    elif lr_domain.lr_scheduler == eppb.LRScheduleType.MultiStepLR:
+        print('Use MultiStepLR scheduler, milestones: {}, gamma: {}'.format(
+            lr_domain.multi_step_lr.milestones, lr_domain.multi_step_lr.gamma))
+        scheduler_next = torch.optim.lr_scheduler.MultiStepLR(
+            optimizer, milestones=lr_domain.multi_step_lr.milestones, gamma=lr_domain.multi_step_lr.gamma)
+    elif lr_domain.lr_scheduler == eppb.LRScheduleType.CyclicLR:
+        print('Use CyclicLR scheduler')
+        if not lr_domain.cyclic_lr.HasField('step_size_down'):
+            step_size_down = None
+        else:
+            step_size_down = lr_domain.cyclic_lr.step_size_down
+
+        cyclic_mode_map = {eppb.CyclicLRParam.Mode.triangular: 'triangular',
+                           eppb.CyclicLRParam.Mode.triangular2: 'triangular2',
+                           eppb.CyclicLRParam.Mode.exp_range: 'exp_range', }
+
+        scheduler_next = torch.optim.lr_scheduler.CyclicLR(
+            optimizer, base_lr=lr_domain.cyclic_lr.base_lr, max_lr=lr_domain.cyclic_lr.max_lr,
+            step_size_up=lr_domain.cyclic_lr.step_size_up, step_size_down=step_size_down,
+            mode=cyclic_mode_map[lr_domain.cyclic_lr.mode], gamma=lr_domain.cyclic_lr.gamma)
     else:
         raise NotImplementedError
-    if args.warmup_epoch <= 0:
+    if not lr_domain.HasField('warmup'):
         return scheduler_next
     print('Use warmup scheduler')
-    lr_scheduler = GradualWarmupScheduler(optimizer, multiplier=args.warmup_multiplier,
-                                          total_epoch=args.warmup_epoch,
+    lr_scheduler = GradualWarmupScheduler(optimizer, multiplier=lr_domain.warmup.multiplier,
+                                          total_epoch=lr_domain.warmup.epochs,
                                           after_scheduler=scheduler_next)
     return lr_scheduler
 
 
-def get_dnq_scheduler(model, args):
-    print('Use MultiStepDNQ scheduler, milestones: {}, gamma: {}'.format(args.dnq_milestones, args.dnq_gamma))
-    scheduler = dnq_scheduler.MultiStepDNQ(model, milestones=args.dnq_milestones, gamma=args.dnq_gamma, nbits=args.qw)
-    return scheduler
+def get_optimizer(model, args):
+    # define optimizer after process model
+    print('define optimizer')
+    if args.hp.optimizer == eppb.OptimizerType.SGD:
+        params = add_weight_decay(model, weight_decay=args.hp.sgd.weight_decay,
+                                  skip_keys=['expand_', 'running_scale', 'alpha',
+                                             'standard_threshold', 'nbits'])
+        optimizer = torch.optim.SGD(params, args.hp.lr,
+                                    momentum=args.hp.sgd.momentum)
+        print('Use SGD')
+    elif args.hp.optimizer == eppb.OptimizerType.Adam:
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.hp.lr, weight_decay=args.hp.adam.weight_decay)
+        print('Use Adam')
+    else:
+        raise NotImplementedError
+    return optimizer
 
 
 def accuracy(output, target, topk=(1,)):
@@ -192,7 +205,7 @@ def accuracy(output, target, topk=(1,)):
 
         res = []
         for k in topk:
-            correct_k = correct[:k].view(-1).float().sum(0, keepdim=True)
+            correct_k = correct[:k].reshape(-1).float().sum(0, keepdim=True)
             res.append(correct_k.mul_(100.0 / batch_size))
         return res
 
@@ -213,27 +226,41 @@ def add_weight_decay(model, weight_decay, skip_keys):
     return [{'params': no_decay, 'weight_decay': 0.}, {'params': decay, 'weight_decay': weight_decay}]
 
 
-def gen_key_map(new_dict, old_dict):
-    new_keys = [(k, v.size()) for (k, v) in new_dict.items()]
-    ori_keys = [(k, v.size()) for (k, v) in old_dict.items()]
-    key_map = OrderedDict()
-    assert len(new_keys) == len(ori_keys)
-    for i in range(len(new_keys)):
-        if 'expand_' in new_keys[i][0] and ori_keys[i][1] != new_keys[i][1]:
-            print('{}({}) is expanded to {}({})'.format(ori_keys[i][0], ori_keys[i][1],
-                                                        new_keys[i][0], new_keys[i][1]))
-        else:
-            assert ori_keys[i][1] == new_keys[i][1], '{} != {}'.format(ori_keys[i][1], new_keys[i][1])
-        key_map[new_keys[i][0]] = ori_keys[i][0]
-        print('{} <==> {}'.format(new_keys[i][0], ori_keys[i][0]))
-    return key_map
-
-
 def set_bn_eval(m):
+    """[summary]
+    https://pytorch.org/docs/stable/generated/torch.nn.BatchNorm2d.html#torch.nn.BatchNorm2d
+    https://github.com/pytorch/pytorch/issues/16149
+        requires_grad does not change the train/eval mode, 
+        but will avoid calculating the gradients for the affine parameters (weight and bias).
+        bn.train() and bn.eval() will change the usage of the running stats (running_mean and running_var).
+    For detailed computation of Batch Normalization, please refer to the source code here.
+    https://github.com/pytorch/pytorch/blob/83c054de481d4f65a8a73a903edd6beaac18e8bc/torch/csrc/jit/passes/graph_fuser.cpp#L232
+    The input is normalized by the calculated mean and variance first. 
+    Then the transformation of w*x+b is applied on it by adding the operations to the computational graph.
+    """
     classname = m.__class__.__name__
     if classname.find('BatchNorm') != -1:
         m.eval()
     return
+
+
+def set_bn_grad_false(m):
+    """freeze \gamma and \beta in BatchNorm
+        model.apply(set_bn_grad_false)
+        optimizer = SGD(model.parameters())
+    """
+    classname = m.__class__.__name__
+    if classname.find('BatchNorm') != -1:
+        if m.affine:
+            m.weight.requires_grad_(False)
+            m.bias.requires_grad_(False)
+
+
+def set_param_grad_false(model):
+    for name, param in model.named_parameters():  # same to set bn val? No
+        if param.requires_grad:
+            param.requires_grad_(False)
+            print('frozen weights. shape:{}'.format(param.shape))
 
 
 def validate(val_loader, model, criterion, args):
@@ -251,7 +278,7 @@ def validate(val_loader, model, criterion, args):
         for i, (input, target) in enumerate(val_loader):
             if args.gpu is not None:
                 input = input.cuda(args.gpu, non_blocking=True)
-            target = target.cuda(args.gpu, non_blocking=True)
+                target = target.cuda(args.gpu, non_blocking=True)
             # compute output
             output = model(input)
             loss = criterion(output, target)
@@ -265,11 +292,10 @@ def validate(val_loader, model, criterion, args):
             # measure elapsed time
             batch_time.update(time.time() - end)
             end = time.time()
-            if args.extract_inner_data:
-                print('early stop evaluation')
-                break
-            if i % args.print_freq == 0:
+            if i % args.hp.print_freq == 0:
                 progress.print(i)
+            if args.hp.overfit_test:
+                break
 
         print(' *Time {time.sum:.0f}s Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'
               .format(time=batch_time, top1=top1, top5=top5))
@@ -277,15 +303,7 @@ def validate(val_loader, model, criterion, args):
     return top1.avg, top5.avg
 
 
-def is_finish(finishes):
-    finish = True
-    for f in finishes:
-        finish = finish and f
-    return finish
-
-
-def train(train_loader, model, criterion, optimizer, epoch, args, writer, criterion_admm=None,
-          admm_scheduler=None):
+def train(train_loader, model, criterion, optimizer, epoch, args, writer):
     batch_time = AverageMeter('Time', ':6.3f')
     data_time = AverageMeter('Data', ':6.3f')
     losses = AverageMeter('Loss', ':.4e')
@@ -293,12 +311,10 @@ def train(train_loader, model, criterion, optimizer, epoch, args, writer, criter
     top5 = AverageMeter('Acc@5', ':6.2f')
     progress = ProgressMeter(args.batch_num, batch_time, data_time, losses, top1,
                              top5, prefix="Epoch: [{}]".format(epoch))
-
+    print('gpu id: {}'.format(args.gpu))
     # switch to train mode
     model.train()
 
-    if args.freeze_bn:
-        model.apply(set_bn_eval)
     end = time.time()
     base_step = epoch * args.batch_num
     for i, data in enumerate(train_loader):
@@ -309,14 +325,9 @@ def train(train_loader, model, criterion, optimizer, epoch, args, writer, criter
         if args.gpu is not None:
             inputs = inputs.cuda(args.gpu, non_blocking=True)
             targets = targets.cuda(args.gpu, non_blocking=True)
-        elif args.gpus is not None:
-            inputs = inputs.cuda(non_blocking=True)
-            targets = targets.cuda(non_blocking=True)
         # compute output
         output = model(inputs)
         loss = criterion(output, targets)
-        if criterion_admm is not None:
-            loss += criterion_admm(model, admm_scheduler.Z, admm_scheduler.U)
         # measure accuracy and record loss
         acc1, acc5 = accuracy(output, targets, topk=(1, 5))
         losses.update(loss.item(), inputs.size(0))
@@ -327,8 +338,8 @@ def train(train_loader, model, criterion, optimizer, epoch, args, writer, criter
             writer.add_scalar('train/acc1', top1.avg, base_step + i)
             writer.add_scalar('train/acc5', top5.avg, base_step + i)
         # compute gradient and do SGD step
-        # optimizer.param_groups[0]['params']:
         loss.backward()
+        # optimizer.param_groups[1]['params'][3].grad
         optimizer.step()
         optimizer.zero_grad()
         # warning 1. backward 2. step 3. zero_grad
@@ -336,52 +347,23 @@ def train(train_loader, model, criterion, optimizer, epoch, args, writer, criter
         batch_time.update(time.time() - end)
         end = time.time()
 
-        if i % args.print_freq == 0:
+        if i % args.hp.print_freq == 0:
             progress.print(i)
-            if writer is not None and args.debug:
-                for k, v in model.state_dict().items():
-                    if 'module.' in k and args.gpus is not None:
-                        k = k[7:]
-                    if 'alpha' in k or 'scale' in k:
-                        if v.shape[0] == 1:
-                            writer.add_scalar('train/{}/{}'.format(args.arch, k), v.item(), base_step + i)
-                        else:
-                            writer.add_histogram('train/{}/{}'.format(args.arch, k), v, base_step + i)
+            if writer is not None and args.hp.debug:
+                pass
+        if args.hp.overfit_test:
+            break
     return
 
 
 def get_summary_writer(args, ngpus_per_node):
-    if not args.multiprocessing_distributed or (args.multiprocessing_distributed
-                                                and args.rank % ngpus_per_node == 0):
-        if 'q' in args.arch:
-            args.log_name = 'logger/{}_w{}a{}_{}'.format(args.arch, args.qw, args.qa,
-                                                         args.log_name)
-        else:
-            args.log_name = 'logger/{}_{}'.format(args.arch,
-                                                  args.log_name)
+    if not args.hp.multi_gpu.multiprocessing_distributed or (args.hp.multi_gpu.multiprocessing_distributed
+                                                             and args.hp.multi_gpu.rank % ngpus_per_node == 0):
+        args.log_name = 'logger/{}_{}_{}'.format(args.hp.arch,
+                                                 args.hp.log_name, get_current_time())
         writer = SummaryWriter(args.log_name)
         return writer
     return None
-
-
-def main_gen_key_map(args, model, models):
-    if isinstance(models, list):
-        assert len(models) == 2, len(models)
-        assert args.original_model in models[0].__dict__ or args.original_model in models[
-            1].__dict__, '{} must be included'.format(args.original_model)
-        try:
-            ori_model = models[0].__dict__[args.original_model]()
-        except KeyError:
-            ori_model = models[1].__dict__[args.original_model]()
-    else:
-        assert args.original_model in models.__dict__, '{} must be included'.format(args.original_model)
-        ori_model = models.__dict__[args.original_model]()
-    print('Original model:\n=========\n{}\n=========='.format(ori_model))
-    key_map = gen_key_map(model.state_dict(), ori_model.state_dict())
-    with open('models/weight_keys_map/{}_map.json'.format(args.arch), 'w') as wf:
-        json.dump(key_map, wf)
-    print('Generate key map done')
-    return
 
 
 def get_model_info(model, args, input_size=(3, 224, 224)):
@@ -390,23 +372,22 @@ def get_model_info(model, args, input_size=(3, 224, 224)):
         input_size = input_size.dataset.__getitem__(0)[0].shape
         input_size = (input_size[0], input_size[1], input_size[2])
     with open('{}/{}_flops.txt'.format(args.log_name, args.arch), 'w') as f:
-        try:
-            flops, params = get_model_complexity_info(model, input_size, as_strings=True, print_per_layer_stat=True,
-                                                      ost=f)
-        except:
-            print('get model info error')
-            return None
+        flops, params = get_model_complexity_info(
+            model, input_size, as_strings=True, print_per_layer_stat=True, ost=f)
     print('{:<30}  {:<8}'.format('Computational complexity: ', flops))
     print('{:<30}  {:<8}'.format('Number of parameters: ', params))
     with open('{}/{}.txt'.format(args.log_name, args.arch), 'w') as wf:
         wf.write(str(model))
+    with open('{}/{}.prototxt'.format(args.log_name, args.arch), 'w') as wf:
+        wf.write(str(args.hp))
     # summary(model, input_size)
-    if args.export_onnx:
+    if args.hp.export_onnx:
         dummy_input = torch.randn(1, input_size[0], input_size[1], input_size[2], requires_grad=True).cuda(args.gpu)
         # torch_out = model(dummy_input)
         torch.onnx.export(model,  # model being run
                           dummy_input,  # model input (or a tuple for multiple inputs)
-                          "{}.onnx".format(args.arch),  # where to save the model (can be a file or file-like object)
+                          # where to save the model (can be a file or file-like object)
+                          "{}/{}.onnx".format(args.log_name, args.arch),
                           export_params=True,  # store the trained parameter weights inside the model file
                           # opset_version=10,  # the ONNX version to export the model to
                           input_names=['input'],  # the model's input names
@@ -422,84 +403,60 @@ def save_checkpoint(state, is_best, prefix, filename='checkpoint.pth.tar'):
     return
 
 
-def process_model(model, optimizer, args, conv_name=None, **kwargs_conv):
-    # optionally resume from a checkpoint
-    if args.resume:
-        if os.path.isfile(args.resume):
-            print("=> loading checkpoint '{}'".format(args.resume))
-            checkpoint = torch.load(args.resume, map_location='cpu')
-            model.load_state_dict(checkpoint['state_dict'])  # GPU memory leak. todo
+def process_model(model, args, replace_map=None, replace_first_layer=False, **kwargs_module):
+    if not hasattr(args, 'arch'):
+        args.arch = args.hp.arch
 
-            if not args.quant_bias_scale:
-                # todo: del
-                args.start_epoch = checkpoint['epoch']
-                best_acc1 = checkpoint['best_acc1']
-                optimizer.load_state_dict(checkpoint['optimizer'])
-                print("=> loaded checkpoint '{}' (epoch {}) (acc: {})"
-                      .format(args.resume, checkpoint['epoch'], best_acc1))
-
-                if args.resave:
-                    model.cpu()
-                    print('=> save only weights in {}.pth'.format(args.arch))
-                    torch.save(model.state_dict(), '{}.pth'.format(args.arch))
-                model.cuda(args.gpu)
-                # save pth here
+    if args.hp.HasField('weight'):
+        if os.path.isfile(args.hp.weight):
+            print("=> loading weight '{}'".format(args.hp.weight))
+            weight = torch.load(args.hp.weight, map_location='cpu')
+            model.load_state_dict(weight)
         else:
-            print("=> no checkpoint found at '{}'".format(args.resume))
-    if conv_name is not None:
-        print('replace conv {}'.format(conv_name))
-        wrapper.replace_conv_recursively(model, conv_name, **kwargs_conv)
-        print('after conv replacement')
-        print(model)
-        args.arch = '{}_{}'.format(args.arch, conv_name)
+            print("=> no weight found at '{}'".format(args.hp.weight))
 
-    if args.bn_fusion:
-        print('BN fusion begin')
-        model = wrapper.fuse_bn_recursively(model)
-        print('after bn fusion: ')
-        print(model)
-        if args.resave:
-            print('=> re-save the weights in {}_wo_bn.pth'.format(args.arch))
-            torch.save(model.state_dict(), '{}_wo_bn.pth'.format(args.arch))
+    if replace_map is not None:
+        tool = wrapper.ReplaceModuleTool(model, replace_map, replace_first_layer, **kwargs_module)
+        tool.replace()
+        args.replace = [tool.convs, tool.linears, tool.acts]
+        print('after modules replacement')
+        display_model(model)
+        info = ''
+        for k, v in replace_map.items():
+            if isinstance(v, list):
+                for vv in v:
+                    info += vv.__name__
+            else:
+                info += v.__name__
+        args.arch = '{}_{}'.format(args.arch, info)
+        print('Please update optimizer after modules replacement')
 
-    if args.quant_bias_scale:
-        # todo: del this
-        print('add qcode for scale and quantize bias')
-        model = wrapper.quantize_scale_and_bias(model)
-        print('after quantize scale and bias')
-        print(model)
-
-    if args.resume_after:
-        if os.path.isfile(args.resume_after):
-            print('=> loading checkpoint {}'.format(args.resume_after))
-            checkpoint = torch.load(args.resume_after, map_location='cpu')
-            model.load_state_dict(checkpoint['state_dict'], strict=False)
-            model.cuda(args.gpu)
+    if args.hp.HasField('resume'):
+        if os.path.isfile(args.hp.resume):
+            print("=> loading checkpoint '{}'".format(args.hp.resume))
+            checkpoint = torch.load(args.hp.resume, map_location='cpu')
+            model.load_state_dict(checkpoint['state_dict'])
         else:
-            print("=> no checkpoint found at '{}'".format(args.resume))
+            print("=> no checkpoint found at '{}'".format(args.hp.resume))
 
-    if args.extract_inner_data:
-        print('extract inner feature map and weight')
-        wrapper.save_inner_hooks(model)
-        if not args.evaluate:
-            warnings.warn('When extract_inner_data is true, -e is recommended')
-            args.evaluate = True
-        for k, v in model.state_dict().items():
-            print('saving {}'.format(k))
-            np.save('{}'.format(k), v.cpu().numpy())
     return
 
 
 class DataloaderFactory(object):
-    cifar10 = 1
-    cifar10_positive_shift = 2
-    imagenet2012 = 5
-    caltech101 = 7
-    cifar100 = 8
-    flower102 = 9
+    # MNIST
+    mnist = 0
+    # CIFAR10
+    cifar10 = 10
+    # ImageNet2012
+    imagenet2012 = 40
 
     def __init__(self, args):
         self.args = args
+        self.mnist_transform = transforms.Compose([
+            transforms.Resize([32, 32]),
+            transforms.ToTensor(),
+            transforms.Normalize((0.1307,), (0.3081,))
+        ])
         self.cifar10_transform_train = transforms.Compose([
             transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
@@ -510,48 +467,43 @@ class DataloaderFactory(object):
             transforms.ToTensor(),
             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
         ])
-        self.cifar10_positive_shift_transform_train = transforms.Compose([
-            transforms.RandomCrop(32, padding=4),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            transforms.Normalize((0, 0, 0), (0.25, 0.25, 0.25)),
-        ])
-        self.cifar10_positive_shift_transform_val = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize((0, 0, 0), (0.25, 0.25, 0.25)),
-        ])
 
     def product_train_val_loader(self, data_type):
         args = self.args
+        noverfit = not args.hp.overfit_test
         train_loader = None
         val_loader = None
+        # MNIST
+        if data_type == self.mnist:
+            train_loader = torch.utils.data.DataLoader(
+                torchvision.datasets.MNIST(args.hp.data, train=True, download=True,
+                                           transform=self.mnist_transform),
+                batch_size=args.hp.batch_size, shuffle=True and noverfit)
+            val_loader = torch.utils.data.DataLoader(
+                torchvision.datasets.MNIST(args.hp.data, train=False, transform=self.mnist_transform),
+                batch_size=args.hp.batch_size, shuffle=False)
+            return train_loader, val_loader
+        # CIFAR10
         if data_type == self.cifar10:
-            trainset = torchvision.datasets.CIFAR10(root=args.data, train=True, download=True,
+            trainset = torchvision.datasets.CIFAR10(root=args.hp.data, train=True, download=True,
                                                     transform=self.cifar10_transform_train)
             if args.distributed:
                 train_sampler = torch.utils.data.distributed.DistributedSampler(trainset)
             else:
                 train_sampler = None
-            train_loader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size,
-                                                       shuffle=(train_sampler is None),
-                                                       num_workers=args.workers, sampler=train_sampler)
-            testset = torchvision.datasets.CIFAR10(root=args.data, train=False, download=True,
+            train_loader = torch.utils.data.DataLoader(trainset, batch_size=args.hp.batch_size,
+                                                       shuffle=(train_sampler is None) and noverfit,
+                                                       num_workers=args.hp.workers, sampler=train_sampler)
+            testset = torchvision.datasets.CIFAR10(root=args.hp.data, train=False, download=True,
                                                    transform=self.cifar10_transform_val)
-            val_loader = torch.utils.data.DataLoader(testset, batch_size=args.batch_size, shuffle=False,
-                                                     num_workers=args.workers)
-        elif data_type == self.cifar10_positive_shift:
-            trainset = torchvision.datasets.CIFAR10(root=args.data, train=True, download=True,
-                                                    transform=self.cifar10_positive_shift_transform_train)
-            train_loader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True,
-                                                       num_workers=args.workers)
-            testset = torchvision.datasets.CIFAR10(root=args.data, train=False, download=True,
-                                                   transform=self.cifar10_positive_shift_transform_val)
-            val_loader = torch.utils.data.DataLoader(testset, batch_size=args.batch_size, shuffle=False,
-                                                     num_workers=args.workers)
+            val_loader = torch.utils.data.DataLoader(testset, batch_size=args.hp.batch_size, shuffle=False,
+                                                     num_workers=args.hp.workers)
+            return train_loader, val_loader, train_sampler
+        # ImageNet
         elif data_type == self.imagenet2012:
             # Data loading code
-            traindir = os.path.join(args.data, 'train')
-            valdir = os.path.join(args.data, 'val')
+            traindir = os.path.join(args.hp.data, 'train')
+            valdir = os.path.join(args.hp.data, 'val')
             normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                              std=[0.229, 0.224, 0.225])
             train_dataset = torchvision.datasets.ImageFolder(
@@ -569,9 +521,8 @@ class DataloaderFactory(object):
                 train_sampler = None
 
             train_loader = torch.utils.data.DataLoader(
-                train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
-                num_workers=args.workers, pin_memory=True, sampler=train_sampler)
-            args.batch_num = len(train_loader)
+                train_dataset, batch_size=args.hp.batch_size, shuffle=(train_sampler is None) and noverfit,
+                num_workers=args.hp.workers, pin_memory=True, sampler=train_sampler)
 
             val_loader = torch.utils.data.DataLoader(
                 torchvision.datasets.ImageFolder(valdir, transforms.Compose([
@@ -580,97 +531,9 @@ class DataloaderFactory(object):
                     transforms.ToTensor(),
                     normalize,
                 ])),
-                batch_size=64, shuffle=False,
-                num_workers=args.workers, pin_memory=True)
-            # todo: args.batch_size
+                batch_size=args.hp.batch_size, shuffle=False,
+                num_workers=args.hp.workers, pin_memory=True)
             return train_loader, val_loader, train_sampler
-
-        elif data_type == self.caltech101:
-            transform_train = transforms.Compose([
-                transforms.Resize(36),
-                transforms.RandomCrop(32),
-                # transforms.Resize(72),
-                # transforms.RandomCrop(64),
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-            ])
-
-            transform_test = transforms.Compose([
-                transforms.Resize([32, 32]),
-                # transforms.RandomCrop(32),
-                transforms.ToTensor(),
-                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-            ])
-
-            train_data = torchvision.datasets.ImageFolder(args.data + '/train', transform=transform_train)
-            valid_data = torchvision.datasets.ImageFolder(args.data + '/val', transform=transform_test)
-
-            train_loader = torch.utils.data.DataLoader(train_data, batch_size=args.batch_size, shuffle=True,
-                                                       num_workers=args.workers)
-            val_loader = torch.utils.data.DataLoader(valid_data, batch_size=args.batch_size, num_workers=args.workers)
-        elif data_type == self.cifar100:
-            transform_train = transforms.Compose([
-                transforms.RandomCrop(32, padding=4),
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-            ])
-
-            transform_test = transforms.Compose([
-                transforms.ToTensor(),
-                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-            ])
-
-            trainset = torchvision.datasets.CIFAR100(root=args.data, train=True, download=True,
-                                                     transform=transform_train)
-            train_loader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True,
-                                                       num_workers=args.workers)
-            args.batch_num = len(train_loader)
-            testset = torchvision.datasets.CIFAR100(root=args.data, train=False, download=True,
-                                                    transform=transform_test)
-            val_loader = torch.utils.data.DataLoader(testset, batch_size=args.batch_size, shuffle=False,
-                                                     num_workers=args.workers)
-        elif data_type == self.flower102:
-            # The input size can be set to 224
-            # https://github.com/MiguelAMartinez/flowers-image-classifier/blob/master/utils_ic.py#L19
-            # transform_train = transforms.Compose([transforms.RandomRotation(30),
-            #                                       transforms.Resize(255),
-            #                                       transforms.CenterCrop(224),
-            #                                       transforms.RandomHorizontalFlip(),
-            #                                       transforms.ToTensor(),
-            #                                       transforms.Normalize([0.485, 0.456, 0.406],
-            #                                                            [0.229, 0.224, 0.225])])
-            #
-            # transform_test = transforms.Compose([transforms.Resize(255),
-            #                                      transforms.CenterCrop(224),
-            #                                      transforms.ToTensor(),
-            #                                      transforms.Normalize([0.485, 0.456, 0.406],
-            #                                                           [0.229, 0.224, 0.225])])
-
-            transform_train = transforms.Compose([
-                transforms.Resize(36),
-                transforms.RandomCrop(32),
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-            ])
-
-            transform_test = transforms.Compose([
-                transforms.Resize([32, 32]),
-                # transforms.RandomCrop(32),
-                transforms.ToTensor(),
-                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-            ])
-
-            train_data = torchvision.datasets.ImageFolder(args.data + '/train', transform=transform_train)
-            test_data = torchvision.datasets.ImageFolder(args.data + '/valid', transform=transform_test)
-            valid_data = torchvision.datasets.ImageFolder(args.data + '/test', transform=transform_test)
-
-            train_loader = torch.utils.data.DataLoader(train_data, batch_size=args.batch_size, shuffle=True,
-                                                       num_workers=args.workers)
-            test_loader = torch.utils.data.DataLoader(test_data, batch_size=args.batch_size, num_workers=args.workers)
-            val_loader = torch.utils.data.DataLoader(valid_data, batch_size=args.batch_size, num_workers=args.workers)
         else:
             assert NotImplementedError
         return train_loader, val_loader
@@ -716,35 +579,67 @@ class AverageMeter(object):
 
 
 def distributed_model(model, ngpus_per_node, args):
-    if not torch.cuda.is_available():
+    if not torch.cuda.is_available() or args.gpu is None:
         print('using CPU, this will be slow')
     elif args.distributed:
         # For multiprocessing distributed, DistributedDataParallel constructor
         # should always set the single device scope, otherwise,
         # DistributedDataParallel will use all available devices.
         if args.gpu is not None:
-            torch.cuda.set_device(args.gpu)
+            torch.cuda.set_device(int(args.gpu))
             model.cuda(args.gpu)
 
             # When using a single GPU per process and per
             # DistributedDataParallel, we need to divide the batch size
             # ourselves based on the total number of GPUs we have
-            args.batch_size = int(args.batch_size / ngpus_per_node)
-            args.workers = int((args.workers + ngpus_per_node - 1) / ngpus_per_node)
-            model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
+            args.hp.batch_size = int(args.hp.batch_size / ngpus_per_node)
+            args.hp.workers = int(
+                (args.hp.workers + ngpus_per_node - 1) / ngpus_per_node)
+            model = torch.nn.parallel.DistributedDataParallel(
+                model, device_ids=[args.gpu])
         else:
+            assert NotImplementedError
             model.cuda()
             # DistributedDataParallel will divide and allocate batch_size to all
             # available GPUs if device_ids are not set
             model = torch.nn.parallel.DistributedDataParallel(model)
     elif args.gpu is not None:
-        torch.cuda.set_device(args.gpu)
+        torch.cuda.set_device(int(args.gpu))
         model = model.cuda(args.gpu)
     else:
+        assert NotImplementedError
         # DataParallel will divide and allocate batch_size to all available GPUs
-        if args.arch.startswith('alexnet') or args.arch.startswith('vgg'):
+        if args.hp.arch.startswith('alexnet') or args.hp.arch.startswith('vgg'):
             model.features = torch.nn.DataParallel(model.features)
             model.cuda()
         else:
             model = torch.nn.DataParallel(model).cuda()
     return model
+
+
+def get_hash_code(message):
+    hash = hashlib.sha1(message.encode("UTF-8")).hexdigest()
+    return hash[:8]
+
+
+def get_current_time():
+    currentDT = datetime.datetime.now()
+    return currentDT.strftime("%Y-%m-%d-%H:%M")
+
+
+def display_model(model):
+    str_list = str(model).split('\n')
+    if len(str_list) < 30:
+        print(model)
+        return
+    begin = 10
+    end = 5
+    middle = len(str_list) - begin - end
+    abbr_middle = ['...', '{} lines'.format(middle), '...']
+    abbr_str = '\n'.join(str_list[:10] + abbr_middle + str_list[-5:])
+    print(abbr_str)
+
+
+def def_module_name(model):
+    for module_name, module in model.named_modules():
+        module.__name__ = module_name

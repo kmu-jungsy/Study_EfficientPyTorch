@@ -8,8 +8,6 @@
 import torch
 import torch.nn as nn
 
-from models._modules import Conv2dQv2
-
 
 def fuse_bn_sequential(block):
     """
@@ -59,11 +57,6 @@ def fuse_bn_sequential(block):
                     stack[-1].bias = torch.nn.Parameter(bias)
                 else:
                     stack[-1].bias.data.copy_(bias)
-                if isinstance(stack[-1], Conv2dQv2):
-                    # scale = scale * a
-                    scale = conv_st_dict['running_scale']
-                    scale.mul_(A)
-                    stack[-1].running_scale.data.copy_(scale)
         else:
             stack.append(m)
 

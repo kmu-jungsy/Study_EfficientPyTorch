@@ -13,7 +13,6 @@ from functools import partial
 import torch
 import torch.nn as nn
 import numpy as np
-import models._modules as my_nn
 
 
 def get_model_complexity_info(model, input_res,
@@ -143,50 +142,10 @@ def print_model_with_flops(model, total_flops, total_params, units='GMac',
 
 
 def get_model_parameters_number(model):
-    pe_size = 32
     params_num = 0
-    group_cycle = 0
-    group_num = 0
     for name, module in model.named_modules():
-        if isinstance(module, my_nn.Conv2dSQ):
-            nbits_w = module.nbits_w if 0 < module.nbits_w <= 8 else 8
-            params_num += module.weight.numel() * (1 - module.sparsity) * nbits_w / 8
-            if module.bias is not None:
-                params_num += module.bias.numel()
-            mask = module.mask
-            (out_channel, in_channel, k, k) = mask.shape
-            part_out_channel = math.ceil(out_channel / pe_size)
-            part_in_channel = math.ceil(in_channel / pe_size)
-            for i in range(part_out_channel):
-                for j in range(part_in_channel):
-                    mask_part = mask[i * pe_size:(i + 1) * pe_size, j * pe_size: (j + 1) * pe_size, :, :]
-                    # out, in, k, k
-                    cycles = mask_part.sum(axis=1).max(axis=0)[0]
-                    cycles = torch.where(cycles < 7, torch.zeros_like(cycles).fill_(7), cycles)
-                    group_cycle += cycles.sum().item()
-                    group_num += cycles.numel()
-
-        elif isinstance(module, my_nn.Conv2dNPU):
-            mask = module.mask
-            (out_channel, in_channel, k, k) = mask.shape
-            part_out_channel = math.ceil(out_channel / pe_size)
-            part_in_channel = math.ceil(in_channel / pe_size)
-            for i in range(part_out_channel):
-                for j in range(part_in_channel):
-                    mask_part = mask[i * pe_size:(i + 1) * pe_size, j * pe_size: (j + 1) * pe_size, :, :]
-                    # out, in, k, k
-                    cycles = mask_part.sum(axis=1).max(axis=0)[0]
-                    cycles = torch.where(cycles < 7, torch.zeros_like(cycles).fill_(7), cycles)
-                    group_cycle += cycles.sum().item()
-                    group_num += cycles.numel()
-            params_num += module.weight.numel()
-            if module.bias is not None:
-                params_num += module.bias.numel()
-        elif isinstance(module, nn.Conv2d) or isinstance(module, nn.BatchNorm2d) or isinstance(module, nn.Linear):
+        if isinstance(module, nn.Conv2d) or isinstance(module, nn.BatchNorm2d) or isinstance(module, nn.Linear):
             params_num += sum(p.numel() for p in module.parameters() if p.requires_grad)
-    # todo: return cycle
-    if group_num > 0:
-        print('group_cycle: {} group_num: {}, ave: {}'.format(group_cycle, group_num, group_cycle / group_num))
     return params_num
 
 
@@ -368,37 +327,6 @@ def conv_flops_counter_hook(conv_module, input, output):
     conv_module.__flops__ += int(overall_flops)
 
 
-def conv_sq_flops_counter_hook(conv_module, input, output):
-    # Can have multiple inputs, getting the first one
-    input = input[0]
-
-    batch_size = input.shape[0]
-    output_dims = list(output.shape[2:])
-
-    kernel_dims = list(conv_module.kernel_size)
-    in_channels = conv_module.in_channels
-    out_channels = conv_module.out_channels
-    groups = conv_module.groups
-
-    filters_per_channel = out_channels // groups
-    conv_per_position_flops = int(np.prod(kernel_dims)) * in_channels * filters_per_channel
-
-    active_elements_count = batch_size * int(np.prod(output_dims))
-
-    overall_conv_flops = conv_per_position_flops * active_elements_count
-    nbits_a = conv_module.nbits_a if 0 < conv_module.nbits_a <= 8 else 8
-    nbits_w = conv_module.nbits_w if 0 < conv_module.nbits_w <= 8 else 8
-    bit22 = nbits_a * nbits_w
-    overall_conv_flops = overall_conv_flops * (1 - conv_module.sparsity) * bit22 / 64
-
-    bias_flops = 0
-
-    if conv_module.bias is not None:
-        bias_flops = out_channels * active_elements_count
-
-    overall_flops = overall_conv_flops + bias_flops
-
-    conv_module.__flops__ += int(overall_flops)
 
 
 def batch_counter_hook(module, input, output):
@@ -521,7 +449,6 @@ MODULES_MAPPING = {
     # convolutions
     nn.Conv1d: conv_flops_counter_hook,
     nn.Conv2d: conv_flops_counter_hook,
-    my_nn.Conv2dSQ: conv_sq_flops_counter_hook,
     nn.Conv3d: conv_flops_counter_hook,
     # activations
     nn.ReLU: relu_flops_counter_hook,

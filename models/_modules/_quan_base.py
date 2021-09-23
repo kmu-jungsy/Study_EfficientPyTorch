@@ -8,9 +8,8 @@ from torch.nn.parameter import Parameter
 import math
 from enum import Enum
 
-__all__ = ['Qmodes', 'log_shift', '_Conv2dQ', '_LinearQ', '_ActQ',
-           'update_running_scale', 'ln_error', 'truncation', 'round_cus',
-           'get_sparsity_mask', 'FunStopGradient', 'round_pass', 'grad_scale']
+__all__ = ['Qmodes',  '_Conv2dQ', '_LinearQ', '_ActQ',
+           'truncation', 'get_sparsity_mask', 'FunStopGradient', 'round_pass', 'grad_scale']
 
 
 class Qmodes(Enum):
@@ -108,48 +107,6 @@ def round_cus(t, inplace=False):
         t.copy_(temp)
         return t
     return temp
-
-
-def update_running_scale(data_fp, scale_old, error, Qn, Qp, qmode=Qmodes.layer_wise, is_l2=True):
-    s_error = ln_error(data_fp, scale_old / 2, Qn, Qp, qmode, is_l2)
-    b_error = ln_error(data_fp, scale_old * 2, Qn, Qp, qmode, is_l2)
-    a1 = error - s_error
-    a2 = b_error - error
-    g1 = a1 >= 0
-    g2 = a2 > 0
-    g3 = a1 + a2 >= 0
-    """
-                    g1  g2  g3  res
-                    0   0   0   big
-                    0   0   1   big
-                    0   1   0   keep
-                    0   1   1   keep
-                    1   0   0   big
-                    1   0   1   small
-                    1   1   0   small
-                    1   1   1   small
-    """
-    b = ((g1 == 0) * (g2 == 0) == 1) + ((g1 * (g2 == 0) * (g3 == 0)) > 0) > 0
-    s = (((g1 * g2) > 0) + ((g1 * (g2 == 0) * g3) > 0)) > 0
-    return b, s
-
-
-def ln_error(x, scale, Qn, Qp, qmode=Qmodes.layer_wise, is_l2=True):
-    x_clip = (x / scale).clamp(Qn, Qp)
-    x_q = x_clip.round()
-    x_q = x_q * scale
-    if qmode == Qmodes.layer_wise:
-        if is_l2:
-            error = ((x - x_q) ** 2).sum() / x.reshape(-1).size()[0]
-        else:
-            error = (x - x_q).abs().sum() / x.reshape(-1).size()[0]
-    else:
-        if is_l2:
-            error = ((x - x_q) ** 2).sum(dim=0) / x.shape[0]
-        else:
-            error = (x - x_q).abs().sum(dim=0) / x.shape[0]
-    # x_clip = x_clip * scale
-    return error
 
 
 def get_default_kwargs_q(kwargs_q, layer_type):

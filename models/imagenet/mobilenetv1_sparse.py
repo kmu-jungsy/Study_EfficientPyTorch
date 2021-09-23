@@ -19,7 +19,7 @@ import torch.nn as nn
 import torch.utils.model_zoo as model_zoo
 
 model_urls = {
-    'mobilenet': 'https://download.pytorch.org/models/mobilenet-distiller-sparsity.pth',
+    'mobilenet': 'https://github.com/rhhc/zxd_releases/releases/download/Re/mobilenet-distiller-sparsity.pth',
 }
 __all__ = ['mobilenet_distiller', 'mobilenet_025', 'mobilenet_050', 'mobilenet_075']
 

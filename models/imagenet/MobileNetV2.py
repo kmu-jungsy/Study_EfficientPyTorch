@@ -9,7 +9,7 @@ import torch.utils.model_zoo as model_zoo
 __all__ = ['MobileNetV2', 'mobilenetv2']
 
 model_urls = {
-    'mobilenetv2': 'https://download.pytorch.org/models/mobilenet_v2-tonylins-fefefs.pth',
+    'mobilenetv2': 'https://github.com/rhhc/zxd_releases/releases/download/Re/mobilenet_v2-tonylins-fefefs-71.7.pth',
 }
 
 

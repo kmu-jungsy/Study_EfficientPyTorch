@@ -1,63 +1,23 @@
-'''Train CIFAR10 with PyTorch.'''
-from __future__ import print_function
-
-import models.cifar10 as cifar10_models
-from examples import *
-import random
-import torch.multiprocessing as mp
+import models.cifar10 as cifar10_extra_models
 import torch.backends.cudnn as cudnn
-import torch.nn as nn
 import torch.distributed as dist
-
-model_names = sorted(name for name in cifar10_models.__dict__
-                     if name.islower() and not name.startswith("__")
-                     and callable(cifar10_models.__dict__[name]))
+import torch.nn as nn
+from examples import *
 
 best_acc1 = 0
 
 
 def main():
     parser = get_base_parser()
-    parser.add_argument('-a', '--arch', metavar='ARCH', default='vgg10_cifar10',
-                        choices=model_names,
-                        help='model architecture: ' +
-                             ' | '.join(model_names) +
-                             ' (default: vgg10_cifar10)')
-    parser.add_argument('--floor', action='store_true', default=False, help='ActLLSQS use floor instead of round')
     args = parser.parse_args()
+    hp = get_hyperparam(args)
+    if hp.gpu_id == eppb.GPU.ANY:
+        args.gpu = get_freer_gpu()
+    elif hp.gpu_id == eppb.GPU.NONE:
+        args.gpu = None  # TODO: test
 
-    if args.seed is not None:
-        random.seed(args.seed)
-        torch.manual_seed(args.seed)
-        cudnn.deterministic = True
-        warnings.warn('You have chosen to seed training. '
-                      'This will turn on the CUDNN deterministic setting, '
-                      'which can slow down your training considerably! '
-                      'You may see unexpected behavior when restarting '
-                      'from checkpoints.')
-
-    if args.gpu is not None:
-        warnings.warn('You have chosen a specific GPU. This will completely '
-                      'disable data parallelism.')
-
-    if args.dist_url == "env://" and args.world_size == -1:
-        args.world_size = int(os.environ["WORLD_SIZE"])
-
-    args.distributed = args.world_size > 1 or args.multiprocessing_distributed
-
-    ngpus_per_node = torch.cuda.device_count()
-    print('ngpus_per_node: {}'.format(ngpus_per_node))
-    if args.multiprocessing_distributed:
-        # Since we have ngpus_per_node processes per node, the total world_size
-        # needs to be adjusted accordingly
-        args.world_size = ngpus_per_node * args.world_size
-        # Use torch.multiprocessing.spawn to launch distributed processes: the
-        # main_worker process function
-        mp.spawn(main_worker, nprocs=ngpus_per_node, args=(ngpus_per_node, args))
-
-    else:
-        # Simply call main_worker function
-        main_worker(args.gpu, ngpus_per_node, args)
+    main_s1_set_seed(hp)
+    main_s2_start_worker(main_worker, args, hp)
 
 
 def main_worker(gpu, ngpus_per_node, args):
@@ -66,86 +26,72 @@ def main_worker(gpu, ngpus_per_node, args):
 
     if args.gpu is not None:
         print("Use GPU: {} for training".format(args.gpu))
-
+    args.hp = get_hyperparam(args)
     if args.distributed:
-        if args.dist_url == "env://" and args.rank == -1:
-            args.rank = int(os.environ["RANK"])
-        if args.multiprocessing_distributed:
+        if args.hp.multi_gpu.dist_url == "env://" and args.hp.multi_gpu.rank == -1:
+            args.hp.multi_gpu.rank = int(os.environ["RANK"])
+        if args.hp.multi_gpu.multiprocessing_distributed:
             # For multiprocessing distributed training, rank needs to be the
             # global rank among all the processes
-            args.rank = args.rank * ngpus_per_node + gpu
-        dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
-                                world_size=args.world_size, rank=args.rank)
-
+            args.hp.multi_gpu.rank = args.hp.multi_gpu.rank * ngpus_per_node + gpu
+        dist.init_process_group(backend=args.hp.multi_gpu.dist_backend, init_method=args.hp.multi_gpu.dist_url,
+                                world_size=args.world_size, rank=args.hp.multi_gpu.rank)
     # create model
-    if args.gen_map:
-        args.qw = -1
-        args.qa = -1
-    if args.pretrained:
-        print("=> using pre-trained model '{}'".format(args.arch))
+    if args.hp.pretrained:
+        print("=> using pre-trained model '{}'".format(args.hp.arch))
     else:
-        print("=> creating model '{}'".format(args.arch))
-    try:
-        model = cifar10_models.__dict__[args.arch](pretrained=args.pretrained,
-                                                   nbits_w=args.qw, nbits_a=args.qa,
-                                                   q_mode=str_q_mode_map[args.q_mode],
-                                                   floor=args.floor)
-    except KeyError:
-        print('do not support {}'.format(args.arch))
-        return
+        print("=> creating model '{}'".format(args.hp.arch))
+    if args.hp.model_source == eppb.HyperParam.ModelSource.Local:
+        model = cifar10_extra_models.__dict__[args.hp.arch](pretrained=args.hp.pretrained)
+    else:
+        raise NotImplementedError
 
-    print('model:\n=========\n{}\n=========='.format(model))
-    if args.gen_map:
-        main_gen_key_map(args, model, cifar10_models)
-        return
+    print('model:\n=========\n')
+    display_model(model)
+
+    process_model(model, args)
+
     # parallel and multi-gpu
     model = distributed_model(model, ngpus_per_node, args)
 
-    # define loss function (criterion) and optimizer
+    # define loss function (criterion)
     criterion = nn.CrossEntropyLoss().cuda(args.gpu)
-    params = add_weight_decay(model, weight_decay=args.weight_decay, skip_keys=['alpha'])
-    optimizer = torch.optim.SGD(params, args.lr,
-                                momentum=args.momentum,
-                                weight_decay=args.weight_decay)
-    process_model(model, optimizer, args)
-
+    optimizer = get_optimizer(model, args)
     cudnn.benchmark = True
 
-    # Data loading code
-    print('==> Preparing data..')
     df = DataloaderFactory(args)
-    train_loader, val_loader = df.product_train_val_loader(df.cifar10)
+    train_loader, val_loader, train_sampler = df.product_train_val_loader(df.cifar10)
     writer = get_summary_writer(args, ngpus_per_node)
-    if (args.qw <= 0 and args.qa <= 0) or args.evaluate:
+    if args.hp.evaluate:
         if writer is not None:
             get_model_info(model, args, val_loader)
     args.batch_num = len(train_loader)
 
-    scheduler_warmup = get_lr_scheduler(optimizer, args)
-    dnq_scheduler = get_dnq_scheduler(model, args)
+    scheduler_lr = get_lr_scheduler(optimizer, args)
 
-    if args.evaluate:
+    if args.hp.evaluate:
         validate(val_loader, model, criterion, args)
         return
-    for epoch in range(args.start_epoch, args.epochs):
-        # adjust_learning_rate(optimizer, epoch, args)
+
+    for epoch in range(0, args.start_epoch):
+        scheduler_lr.step()
+        pass
+    for epoch in range(args.start_epoch, args.hp.epochs):
+        if args.distributed:
+            train_sampler.set_epoch(epoch)
         # train for one epoch
         train(train_loader, model, criterion, optimizer, epoch, args, writer)
-        scheduler_warmup.step()
-        dnq_scheduler.step()
+        scheduler_lr.step()
         # evaluate on validation set
-        acc1, _ = validate(val_loader, model, criterion, args)
+        acc1, acc5 = validate(val_loader, model, criterion, args)
         if writer is not None:
             writer.add_scalar('val/acc1', acc1, epoch)
+            writer.add_scalar('val/acc5', acc5, epoch)
             writer.add_scalar('val/lr', optimizer.param_groups[0]['lr'], epoch)
-        if writer is not None and args.debug:
-            for module_name, module in model.named_modules():
-                if isinstance(module, my_nn.Conv2dDNQ):
-                    writer.add_scalar('val/nbits', module.nbits, epoch)
-                    break
         # remember best acc@1 and save checkpoint
         is_best = acc1 > best_acc1
         best_acc1 = max(acc1, best_acc1)
+
         if writer is not None:
             save_checkpoint({
                 'epoch': epoch + 1,
@@ -153,10 +99,10 @@ def main_worker(gpu, ngpus_per_node, args):
                 'state_dict': model.state_dict(),
                 'best_acc1': best_acc1,
                 'optimizer': optimizer.state_dict(),
-            }, is_best, prefix='{}/{}_'.format(args.log_name, args.arch))
+            }, is_best, prefix='{}/{}'.format(args.log_name, args.arch))
+    if writer is not None:
+        writer.close()
 
-
-classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
 if __name__ == '__main__':
     main()

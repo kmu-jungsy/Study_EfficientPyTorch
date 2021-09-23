@@ -3,23 +3,10 @@ r"""
     Replace `Linear` with `LinearQ`
 """
 
-from models._modules import Conv2dQv2, LinearQv2, ActQv2
 import torch.nn as nn
 import models._modules as my_nn
 
-__all__ = ['quantize_scale_and_bias', 'replace_conv_recursively']
-
-
-def quantize_scale_and_bias(model, bias_bits=8, scale_bits=8):
-    for module_name, module in model.named_modules():
-        if isinstance(module, ActQv2):
-            if bias_bits > 0:
-                module.set_out_scale(True)
-            module.set_scale_bits(nbits=scale_bits)
-        elif isinstance(module, LinearQv2) or isinstance(module, Conv2dQv2):
-            module.set_scale_bits(nbits=scale_bits)
-            module.set_bias_bits(nbits=bias_bits)
-    return model
+__all__ = ['replace_conv_recursively']
 
 is_first = True
 

@@ -1,0 +1,92 @@
+main_file: "examples/classifier_imagenet/main.py"
+# arch: "resnet18"
+# arch: "resnet50"
+# arch: "inceptionv3"
+# arch: "mobilenetv2_w1"
+# arch: "shufflenet_g1_w1"
+# arch: "sqnxt23_w2"
+# arch: "densenet121"
+# arch: "squeezenet_v1_0"
+# arch: "shufflenetv2_w1"
+# arch: "proxylessnas_gpu"
+# arch: "xception"
+# model_source: TorchVision
+# model_source: PyTorchCV
+
+# arch: "mobilenet_distiller"
+arch: "mobilenetv2"
+model_source: Local
+
+log_name: "val"
+debug: false
+data: "/home/zhaoxiandong/datasets/data.imagenet"
+lr: 0.10
+epochs: 90
+batch_size: 256
+workers: 16
+print_freq: 50
+evaluate: true
+pretrained: true
+seed: 0
+gpu_id: ANY
+export_onnx: false
+
+# arch: "resnet18"
+# model_source: TorchVision
+# Inference for complexity summary
+# Computational complexity:       1.82 GMac
+# Number of parameters:           11.69 M 
+# Use step scheduler, step size: 20, gamma: 0.10000000149011612
+# Test: [  0/196]	Time  6.675 ( 6.675)	Loss 6.7443e-01 (6.7443e-01)	Acc@1  80.08 ( 80.08)	Acc@5  96.09 ( 96.09)
+# Test: [ 50/196]	Time  0.174 ( 0.288)	Loss 6.2451e-01 (9.0812e-01)	Acc@1  83.98 ( 75.97)	Acc@5  95.70 ( 93.28)
+# Test: [100/196]	Time  0.178 ( 0.224)	Loss 1.6807e+00 (1.0526e+00)	Acc@1  57.03 ( 73.43)	Acc@5  84.77 ( 91.65)
+# Test: [150/196]	Time  0.183 ( 0.203)	Loss 1.3500e+00 (1.1946e+00)	Acc@1  73.44 ( 70.79)	Acc@5  85.94 ( 89.73)
+#  *Time 38s Acc@1 69.758 Acc@5 89.078
+
+# arch: "resnet18"
+# model_source: PyTorchCV
+# Inference for complexity summary
+# Computational complexity:       1.82 GMac
+# Number of parameters:           11.69 M 
+# Use step scheduler, step size: 20, gamma: 0.10000000149011612
+# Test: [  0/196]	Time  6.319 ( 6.319)	Loss 8.0428e-01 (8.0428e-01)	Acc@1  82.81 ( 82.81)	Acc@5  96.48 ( 96.48)
+# Test: [ 50/196]	Time  0.188 ( 0.285)	Loss 7.6043e-01 (9.9195e-01)	Acc@1  85.55 ( 78.62)	Acc@5  96.88 ( 94.36)
+# Test: [100/196]	Time  0.187 ( 0.224)	Loss 1.6748e+00 (1.1212e+00)	Acc@1  62.50 ( 75.53)	Acc@5  85.55 ( 92.70)
+# Test: [150/196]	Time  0.186 ( 0.202)	Loss 1.4216e+00 (1.2413e+00)	Acc@1  71.48 ( 73.02)	Acc@5  89.06 ( 91.08)
+#  *Time 38s Acc@1 71.968 Acc@5 90.594
+
+# arch: "resnet50"
+# model_source: PyTorchCV
+# Inference for complexity summary
+# Computational complexity:       3.89 GMac
+# Number of parameters:           25.56 M 
+# Use step scheduler, step size: 20, gamma: 0.10000000149011612
+# Test: [  0/196]	Time  7.889 ( 7.889)	Loss 5.6411e-01 (5.6411e-01)	Acc@1  89.45 ( 89.45)	Acc@5  96.88 ( 96.88)
+# Test: [ 50/196]	Time  0.464 ( 0.599)	Loss 5.0245e-01 (7.1398e-01)	Acc@1  90.62 ( 83.46)	Acc@5  97.27 ( 96.27)
+# Test: [100/196]	Time  0.475 ( 0.527)	Loss 1.1702e+00 (8.2879e-01)	Acc@1  71.88 ( 80.58)	Acc@5  92.97 ( 95.22)
+# Test: [150/196]	Time  0.442 ( 0.502)	Loss 1.0302e+00 (9.2804e-01)	Acc@1  79.69 ( 78.51)	Acc@5  91.02 ( 94.05)
+#  *Time 96s Acc@1 77.720 Acc@5 93.668
+
+# arch: "mobilenetv2_w1"
+# model_source: PyTorchCV
+# Inference for complexity summary
+# Computational complexity:       0.33 GMac
+# Number of parameters:           3.5 M   
+# Use step scheduler, step size: 20, gamma: 0.10000000149011612
+# Test: [  0/196]	Time  6.548 ( 6.548)	Loss 7.0258e-01 (7.0258e-01)	Acc@1  83.59 ( 83.59)	Acc@5  96.09 ( 96.09)
+# Test: [ 50/196]	Time  0.195 ( 0.332)	Loss 6.1051e-01 (8.9986e-01)	Acc@1  88.67 ( 79.30)	Acc@5  96.48 ( 94.55)
+# Test: [100/196]	Time  0.193 ( 0.269)	Loss 1.4836e+00 (1.0187e+00)	Acc@1  66.80 ( 76.61)	Acc@5  87.50 ( 93.21)
+# Test: [150/196]	Time  0.195 ( 0.248)	Loss 1.2784e+00 (1.1326e+00)	Acc@1  74.61 ( 74.11)	Acc@5  87.11 ( 91.60)
+#  *Time 47s Acc@1 73.034 Acc@5 91.130
+
+# arch: "sqnxt23_w2"
+# model_source: PyTorchCV
+# Inference for complexity summary
+# Computational complexity:       0.91 GMac
+# Number of parameters:           2.58 M  
+# Use step scheduler, step size: 20, gamma: 0.10000000149011612
+# Test: [  0/196]	Time  5.903 ( 5.903)	Loss 9.1427e-01 (9.1427e-01)	Acc@1  81.25 ( 81.25)	Acc@5  94.14 ( 94.14)
+# ^[Test: [ 50/196]	Time  0.346 ( 0.477)	Loss 7.5722e-01 (1.0136e+00)	Acc@1  85.16 ( 76.59)	Acc@5  96.09 ( 93.57)
+# Test: [100/196]	Time  0.335 ( 0.412)	Loss 1.8657e+00 (1.1563e+00)	Acc@1  58.20 ( 73.33)	Acc@5  82.81 ( 91.72)
+# Test: [150/196]	Time  0.370 ( 0.391)	Loss 1.4798e+00 (1.2938e+00)	Acc@1  72.27 ( 70.48)	Acc@5  85.55 ( 89.61)
+#  *Time 74s Acc@1 69.384 Acc@5 88.996

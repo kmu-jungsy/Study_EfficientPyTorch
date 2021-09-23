@@ -1,0 +1,23 @@
+main_file: "examples/classifier_mnist/main.py"
+arch: "mnist_lenet"
+model_source: Local
+
+log_name: "baseline"
+debug: false
+data: "/home/zhaoxiandong/datasets/data.mnist"
+lr: 0.1
+epochs: 100
+batch_size: 256
+workers: 16
+print_freq: 50
+evaluate: false
+pretrained: false
+seed: 0
+gpu_id: ANY
+export_onnx: false
+
+lr_scheduler: StepLR
+step_lr {
+  step_size: 50
+  gamma: 0.1
+}

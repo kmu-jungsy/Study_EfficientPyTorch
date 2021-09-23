@@ -6,13 +6,18 @@
 git clone https://github.com/hustzxd/EfficientPyTorch.git
 
 cd EfficientPyTorch
-export PYTHONPATH=$PYTHONPATH:`pwd`
+# ./setup.sh
+source setup.sh
+python setup.py install
 pip install -r requirements.txt
 ```
- 
-## Main Features
 
-- [x] [Learned Linear Symmetric Quantization (LLSQ)](docs/llsq.md)
+## Run
+
+```bash
+./run_cli.sh *.prototxt
+```
+
 - [x] [Learned Step Quantization (LSQ)](docs/lsq.md)
 
 
