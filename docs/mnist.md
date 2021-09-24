@@ -1,3 +1,8 @@
+# Mnist Baseline
+
+| Mnist | accuracy |
+|-------|----------|
+| LeNet | 99.23    |
 
 ```bash
 ./run_cli.sh examples/classifier_mnist/prototxt/model_val.prototxt
