@@ -1,3 +1,9 @@
+# cifar10 baseline
+
+| cifar10  | accuracy |
+|----------|----------|
+| vggsmall | 93.40    |
+
 ```bash
 ./run_cli.sh examples/classifier_cifar10/prototxt/model_val.prototxt
 ```
