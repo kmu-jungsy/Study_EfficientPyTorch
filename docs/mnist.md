@@ -31,7 +31,7 @@ Test: [ 0/40]	Time  0.063 ( 0.063)	Loss 1.7307e-02 (1.7307e-02)	Acc@1  99.61 ( 9
 ```
 
 
-
+## [train](https://github.com/hustzxd/eppb_zoo/blob/main/mnist_lenet_baseline_2021-09-23-20:40.zip)
 ```bash
 ./run_cli.sh examples/classifier_mnist/prototxt/mnist_lenet_train.prototxt
 ```
