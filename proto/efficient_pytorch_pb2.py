@@ -19,7 +19,7 @@ _sym_db = _symbol_database.Default()
 DESCRIPTOR = _descriptor.FileDescriptor(
   name='efficient_pytorch.proto',
   package='efficient_pytorch',
-  serialized_pb=_b('\n\x17\x65\x66\x66icient_pytorch.proto\x12\x11\x65\x66\x66icient_pytorch\"\x8e\x08\n\nHyperParam\x12\x37\n\tmain_file\x18\x01 \x01(\t:$examples/classifier_imagenet/main.py\x12\x15\n\x04\x61rch\x18\x02 \x01(\t:\x07\x61lexnet\x12?\n\x0cmodel_source\x18\x03 \x01(\x0e\x32).efficient_pytorch.HyperParam.ModelSource\x12\x1a\n\x08log_name\x18\x04 \x01(\t:\x08template\x12\x0c\n\x04\x64\x61ta\x18\x05 \x02(\t\x12\r\n\x05\x64\x65\x62ug\x18\x06 \x01(\x08\x12\x14\n\x0coverfit_test\x18\x07 \x01(\x08\x12\x0f\n\x02lr\x18\n \x01(\x02:\x03\x30.1\x12\x12\n\x06\x65pochs\x18\x0b \x01(\x05:\x02\x39\x30\x12\x17\n\nbatch_size\x18\x0c \x01(\x05:\x03\x32\x35\x36\x12\x12\n\x07workers\x18\r \x01(\x05:\x01\x34\x12\x16\n\nprint_freq\x18\x0e \x01(\x05:\x02\x35\x30\x12\x10\n\x08\x65valuate\x18\x0f \x01(\x08\x12\x12\n\npretrained\x18\x10 \x01(\x08\x12\x0c\n\x04seed\x18\x11 \x01(\x05\x12\x13\n\x0b\x65xport_onnx\x18\x12 \x01(\x08\x12\x0e\n\x06resume\x18\x13 \x01(\t\x12\x0e\n\x06weight\x18\x16 \x01(\t\x12&\n\x06gpu_id\x18\x14 \x01(\x0e\x32\x16.efficient_pytorch.GPU\x12.\n\tmulti_gpu\x18\x15 \x01(\x0b\x32\x1b.efficient_pytorch.MultiGPU\x12\'\n\x05qmode\x18\x32 \x01(\x0e\x32\x18.efficient_pytorch.Qmode\x12)\n\x06warmup\x18\x63 \x01(\x0b\x32\x19.efficient_pytorch.Warmup\x12\x37\n\x0clr_scheduler\x18\x64 \x01(\x0e\x32!.efficient_pytorch.LRScheduleType\x12/\n\x07step_lr\x18\x65 \x01(\x0b\x32\x1e.efficient_pytorch.StepLRParam\x12:\n\rmulti_step_lr\x18\x66 \x01(\x0b\x32#.efficient_pytorch.MultiStepLRParam\x12\x33\n\tcyclic_lr\x18g \x01(\x0b\x32 .efficient_pytorch.CyclicLRParam\x12\x34\n\toptimizer\x18\xc8\x01 \x01(\x0e\x32 .efficient_pytorch.OptimizerType\x12)\n\x03sgd\x18\xc9\x01 \x01(\x0b\x32\x1b.efficient_pytorch.SGDParam\x12+\n\x04\x61\x64\x61m\x18\xca\x01 \x01(\x0b\x32\x1c.efficient_pytorch.AdamParam\"8\n\x0bModelSource\x12\x0f\n\x0bTorchVision\x10\x01\x12\r\n\tPyTorchCV\x10\x02\x12\t\n\x05Local\x10\x03\"\x9d\x01\n\x08MultiGPU\x12\x16\n\nworld_size\x18\x01 \x01(\x05:\x02-1\x12\x0f\n\x04rank\x18\x02 \x01(\x05:\x01\x30\x12\'\n\x08\x64ist_url\x18\x03 \x01(\t:\x15tcp://127.0.0.1:23456\x12\x1a\n\x0c\x64ist_backend\x18\x04 \x01(\t:\x04nccl\x12#\n\x1bmultiprocessing_distributed\x18\x05 \x01(\x08\"?\n\x08SGDParam\x12\x1c\n\x0cweight_decay\x18\x01 \x01(\x02:\x06\x30.0001\x12\x15\n\x08momentum\x18\x02 \x01(\x02:\x03\x30.9\")\n\tAdamParam\x12\x1c\n\x0cweight_decay\x18\x01 \x01(\x02:\x06\x30.0001\"4\n\x06Warmup\x12\x12\n\x06\x65pochs\x18\x01 \x01(\x05:\x02\x31\x30\x12\x16\n\nmultiplier\x18\x02 \x01(\x02:\x02\x31\x30\"8\n\x0bStepLRParam\x12\x15\n\tstep_size\x18\x03 \x01(\x05:\x02\x32\x30\x12\x12\n\x05gamma\x18\x04 \x01(\x02:\x03\x30.1\":\n\x10MultiStepLRParam\x12\x12\n\nmilestones\x18\x03 \x03(\x05\x12\x12\n\x05gamma\x18\x04 \x01(\x02:\x03\x30.1\"\xe3\x01\n\rCyclicLRParam\x12\x0f\n\x07\x62\x61se_lr\x18\x01 \x01(\x02\x12\x0e\n\x06max_lr\x18\x02 \x01(\x02\x12\x1a\n\x0cstep_size_up\x18\x03 \x01(\x05:\x04\x32\x30\x30\x30\x12\x16\n\x0estep_size_down\x18\x04 \x01(\x05\x12\x33\n\x04mode\x18\x05 \x01(\x0e\x32%.efficient_pytorch.CyclicLRParam.Mode\x12\x10\n\x05gamma\x18\x06 \x01(\x02:\x01\x31\"6\n\x04Mode\x12\x0e\n\ntriangular\x10\x01\x12\x0f\n\x0btriangular2\x10\x02\x12\r\n\texp_range\x10\x03*\x18\n\x03GPU\x12\x07\n\x03\x41NY\x10\x01\x12\x08\n\x04NONE\x10\x02*(\n\x05Qmode\x12\x0e\n\nlayer_wise\x10\x01\x12\x0f\n\x0bkernel_wise\x10\x02*:\n\x05Pmode\x12\x0e\n\npixel_wise\x10\x01\x12\x10\n\x0c\x63hannel_wise\x10\x02\x12\x0f\n\x0bpattern_npu\x10\x03*\"\n\rOptimizerType\x12\x07\n\x03SGD\x10\x01\x12\x08\n\x04\x41\x64\x61m\x10\x02*R\n\x0eLRScheduleType\x12\n\n\x06StepLR\x10\x01\x12\x0f\n\x0bMultiStepLR\x10\x02\x12\x15\n\x11\x43osineAnnealingLR\x10\x03\x12\x0c\n\x08\x43yclicLR\x10\x04')
+  serialized_pb=_b('\n\x17\x65\x66\x66icient_pytorch.proto\x12\x11\x65\x66\x66icient_pytorch\"\xb6\x08\n\nHyperParam\x12\x37\n\tmain_file\x18\x01 \x01(\t:$examples/classifier_imagenet/main.py\x12\x15\n\x04\x61rch\x18\x02 \x01(\t:\x07\x61lexnet\x12?\n\x0cmodel_source\x18\x03 \x01(\x0e\x32).efficient_pytorch.HyperParam.ModelSource\x12\x1a\n\x08log_name\x18\x04 \x01(\t:\x08template\x12\x0c\n\x04\x64\x61ta\x18\x05 \x02(\t\x12\r\n\x05\x64\x65\x62ug\x18\x06 \x01(\x08\x12\x14\n\x0coverfit_test\x18\x07 \x01(\x08\x12\x0f\n\x02lr\x18\n \x01(\x02:\x03\x30.1\x12\x12\n\x06\x65pochs\x18\x0b \x01(\x05:\x02\x39\x30\x12\x17\n\nbatch_size\x18\x0c \x01(\x05:\x03\x32\x35\x36\x12\x12\n\x07workers\x18\r \x01(\x05:\x01\x34\x12\x16\n\nprint_freq\x18\x0e \x01(\x05:\x02\x35\x30\x12\x10\n\x08\x65valuate\x18\x0f \x01(\x08\x12\x12\n\npretrained\x18\x10 \x01(\x08\x12\x0c\n\x04seed\x18\x11 \x01(\x05\x12\x13\n\x0b\x65xport_onnx\x18\x12 \x01(\x08\x12\x0e\n\x06resume\x18\x13 \x01(\t\x12\x0e\n\x06weight\x18\x16 \x01(\t\x12&\n\x06gpu_id\x18\x14 \x01(\x0e\x32\x16.efficient_pytorch.GPU\x12.\n\tmulti_gpu\x18\x15 \x01(\x0b\x32\x1b.efficient_pytorch.MultiGPU\x12\'\n\x05qmode\x18\x32 \x01(\x0e\x32\x18.efficient_pytorch.Qmode\x12\x12\n\x07nbits_w\x18\x33 \x01(\x05:\x01\x34\x12\x12\n\x07nbits_a\x18\x34 \x01(\x05:\x01\x34\x12)\n\x06warmup\x18\x63 \x01(\x0b\x32\x19.efficient_pytorch.Warmup\x12\x37\n\x0clr_scheduler\x18\x64 \x01(\x0e\x32!.efficient_pytorch.LRScheduleType\x12/\n\x07step_lr\x18\x65 \x01(\x0b\x32\x1e.efficient_pytorch.StepLRParam\x12:\n\rmulti_step_lr\x18\x66 \x01(\x0b\x32#.efficient_pytorch.MultiStepLRParam\x12\x33\n\tcyclic_lr\x18g \x01(\x0b\x32 .efficient_pytorch.CyclicLRParam\x12\x34\n\toptimizer\x18\xc8\x01 \x01(\x0e\x32 .efficient_pytorch.OptimizerType\x12)\n\x03sgd\x18\xc9\x01 \x01(\x0b\x32\x1b.efficient_pytorch.SGDParam\x12+\n\x04\x61\x64\x61m\x18\xca\x01 \x01(\x0b\x32\x1c.efficient_pytorch.AdamParam\"8\n\x0bModelSource\x12\x0f\n\x0bTorchVision\x10\x01\x12\r\n\tPyTorchCV\x10\x02\x12\t\n\x05Local\x10\x03\"\x9d\x01\n\x08MultiGPU\x12\x16\n\nworld_size\x18\x01 \x01(\x05:\x02-1\x12\x0f\n\x04rank\x18\x02 \x01(\x05:\x01\x30\x12\'\n\x08\x64ist_url\x18\x03 \x01(\t:\x15tcp://127.0.0.1:23456\x12\x1a\n\x0c\x64ist_backend\x18\x04 \x01(\t:\x04nccl\x12#\n\x1bmultiprocessing_distributed\x18\x05 \x01(\x08\"?\n\x08SGDParam\x12\x1c\n\x0cweight_decay\x18\x01 \x01(\x02:\x06\x30.0001\x12\x15\n\x08momentum\x18\x02 \x01(\x02:\x03\x30.9\")\n\tAdamParam\x12\x1c\n\x0cweight_decay\x18\x01 \x01(\x02:\x06\x30.0001\"4\n\x06Warmup\x12\x12\n\x06\x65pochs\x18\x01 \x01(\x05:\x02\x31\x30\x12\x16\n\nmultiplier\x18\x02 \x01(\x02:\x02\x31\x30\"8\n\x0bStepLRParam\x12\x15\n\tstep_size\x18\x03 \x01(\x05:\x02\x32\x30\x12\x12\n\x05gamma\x18\x04 \x01(\x02:\x03\x30.1\":\n\x10MultiStepLRParam\x12\x12\n\nmilestones\x18\x03 \x03(\x05\x12\x12\n\x05gamma\x18\x04 \x01(\x02:\x03\x30.1\"\xe3\x01\n\rCyclicLRParam\x12\x0f\n\x07\x62\x61se_lr\x18\x01 \x01(\x02\x12\x0e\n\x06max_lr\x18\x02 \x01(\x02\x12\x1a\n\x0cstep_size_up\x18\x03 \x01(\x05:\x04\x32\x30\x30\x30\x12\x16\n\x0estep_size_down\x18\x04 \x01(\x05\x12\x33\n\x04mode\x18\x05 \x01(\x0e\x32%.efficient_pytorch.CyclicLRParam.Mode\x12\x10\n\x05gamma\x18\x06 \x01(\x02:\x01\x31\"6\n\x04Mode\x12\x0e\n\ntriangular\x10\x01\x12\x0f\n\x0btriangular2\x10\x02\x12\r\n\texp_range\x10\x03*\x18\n\x03GPU\x12\x07\n\x03\x41NY\x10\x01\x12\x08\n\x04NONE\x10\x02*(\n\x05Qmode\x12\x0e\n\nlayer_wise\x10\x01\x12\x0f\n\x0bkernel_wise\x10\x02*:\n\x05Pmode\x12\x0e\n\npixel_wise\x10\x01\x12\x10\n\x0c\x63hannel_wise\x10\x02\x12\x0f\n\x0bpattern_npu\x10\x03*\"\n\rOptimizerType\x12\x07\n\x03SGD\x10\x01\x12\x08\n\x04\x41\x64\x61m\x10\x02*R\n\x0eLRScheduleType\x12\n\n\x06StepLR\x10\x01\x12\x0f\n\x0bMultiStepLR\x10\x02\x12\x15\n\x11\x43osineAnnealingLR\x10\x03\x12\x0c\n\x08\x43yclicLR\x10\x04')
 )
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
@@ -40,8 +40,8 @@ _GPU = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   options=None,
-  serialized_start=1757,
-  serialized_end=1781,
+  serialized_start=1797,
+  serialized_end=1821,
 )
 _sym_db.RegisterEnumDescriptor(_GPU)
 
@@ -63,8 +63,8 @@ _QMODE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   options=None,
-  serialized_start=1783,
-  serialized_end=1823,
+  serialized_start=1823,
+  serialized_end=1863,
 )
 _sym_db.RegisterEnumDescriptor(_QMODE)
 
@@ -90,8 +90,8 @@ _PMODE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   options=None,
-  serialized_start=1825,
-  serialized_end=1883,
+  serialized_start=1865,
+  serialized_end=1923,
 )
 _sym_db.RegisterEnumDescriptor(_PMODE)
 
@@ -113,8 +113,8 @@ _OPTIMIZERTYPE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   options=None,
-  serialized_start=1885,
-  serialized_end=1919,
+  serialized_start=1925,
+  serialized_end=1959,
 )
 _sym_db.RegisterEnumDescriptor(_OPTIMIZERTYPE)
 
@@ -144,8 +144,8 @@ _LRSCHEDULETYPE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   options=None,
-  serialized_start=1921,
-  serialized_end=2003,
+  serialized_start=1961,
+  serialized_end=2043,
 )
 _sym_db.RegisterEnumDescriptor(_LRSCHEDULETYPE)
 
@@ -186,8 +186,8 @@ _HYPERPARAM_MODELSOURCE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   options=None,
-  serialized_start=1029,
-  serialized_end=1085,
+  serialized_start=1069,
+  serialized_end=1125,
 )
 _sym_db.RegisterEnumDescriptor(_HYPERPARAM_MODELSOURCE)
 
@@ -212,8 +212,8 @@ _CYCLICLRPARAM_MODE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   options=None,
-  serialized_start=1701,
-  serialized_end=1755,
+  serialized_start=1741,
+  serialized_end=1795,
 )
 _sym_db.RegisterEnumDescriptor(_CYCLICLRPARAM_MODE)
 
@@ -373,56 +373,70 @@ _HYPERPARAM = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='warmup', full_name='efficient_pytorch.HyperParam.warmup', index=21,
+      name='nbits_w', full_name='efficient_pytorch.HyperParam.nbits_w', index=21,
+      number=51, type=5, cpp_type=1, label=1,
+      has_default_value=True, default_value=4,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None),
+    _descriptor.FieldDescriptor(
+      name='nbits_a', full_name='efficient_pytorch.HyperParam.nbits_a', index=22,
+      number=52, type=5, cpp_type=1, label=1,
+      has_default_value=True, default_value=4,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None),
+    _descriptor.FieldDescriptor(
+      name='warmup', full_name='efficient_pytorch.HyperParam.warmup', index=23,
       number=99, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='lr_scheduler', full_name='efficient_pytorch.HyperParam.lr_scheduler', index=22,
+      name='lr_scheduler', full_name='efficient_pytorch.HyperParam.lr_scheduler', index=24,
       number=100, type=14, cpp_type=8, label=1,
       has_default_value=False, default_value=1,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='step_lr', full_name='efficient_pytorch.HyperParam.step_lr', index=23,
+      name='step_lr', full_name='efficient_pytorch.HyperParam.step_lr', index=25,
       number=101, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='multi_step_lr', full_name='efficient_pytorch.HyperParam.multi_step_lr', index=24,
+      name='multi_step_lr', full_name='efficient_pytorch.HyperParam.multi_step_lr', index=26,
       number=102, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='cyclic_lr', full_name='efficient_pytorch.HyperParam.cyclic_lr', index=25,
+      name='cyclic_lr', full_name='efficient_pytorch.HyperParam.cyclic_lr', index=27,
       number=103, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='optimizer', full_name='efficient_pytorch.HyperParam.optimizer', index=26,
+      name='optimizer', full_name='efficient_pytorch.HyperParam.optimizer', index=28,
       number=200, type=14, cpp_type=8, label=1,
       has_default_value=False, default_value=1,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='sgd', full_name='efficient_pytorch.HyperParam.sgd', index=27,
+      name='sgd', full_name='efficient_pytorch.HyperParam.sgd', index=29,
       number=201, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='adam', full_name='efficient_pytorch.HyperParam.adam', index=28,
+      name='adam', full_name='efficient_pytorch.HyperParam.adam', index=30,
       number=202, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
@@ -441,7 +455,7 @@ _HYPERPARAM = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=47,
-  serialized_end=1085,
+  serialized_end=1125,
 )
 
 
@@ -498,8 +512,8 @@ _MULTIGPU = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1088,
-  serialized_end=1245,
+  serialized_start=1128,
+  serialized_end=1285,
 )
 
 
@@ -535,8 +549,8 @@ _SGDPARAM = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1247,
-  serialized_end=1310,
+  serialized_start=1287,
+  serialized_end=1350,
 )
 
 
@@ -565,8 +579,8 @@ _ADAMPARAM = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1312,
-  serialized_end=1353,
+  serialized_start=1352,
+  serialized_end=1393,
 )
 
 
@@ -602,8 +616,8 @@ _WARMUP = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1355,
-  serialized_end=1407,
+  serialized_start=1395,
+  serialized_end=1447,
 )
 
 
@@ -639,8 +653,8 @@ _STEPLRPARAM = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1409,
-  serialized_end=1465,
+  serialized_start=1449,
+  serialized_end=1505,
 )
 
 
@@ -676,8 +690,8 @@ _MULTISTEPLRPARAM = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1467,
-  serialized_end=1525,
+  serialized_start=1507,
+  serialized_end=1565,
 )
 
 
@@ -742,8 +756,8 @@ _CYCLICLRPARAM = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1528,
-  serialized_end=1755,
+  serialized_start=1568,
+  serialized_end=1795,
 )
 
 _HYPERPARAM.fields_by_name['model_source'].enum_type = _HYPERPARAM_MODELSOURCE

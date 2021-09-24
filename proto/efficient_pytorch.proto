@@ -54,6 +54,8 @@ message HyperParam {
 
     // Quantization modes
     optional Qmode qmode = 50;
+    optional int32 nbits_w = 51[default=4];
+    optional int32 nbits_a = 52[default=4];
 
     optional Warmup warmup = 99;
     optional LRScheduleType lr_scheduler = 100;

@@ -356,12 +356,16 @@ def train(train_loader, model, criterion, optimizer, epoch, args, writer):
     return
 
 
-def get_summary_writer(args, ngpus_per_node):
+def get_summary_writer(args, ngpus_per_node, model):
     if not args.hp.multi_gpu.multiprocessing_distributed or (args.hp.multi_gpu.multiprocessing_distributed
                                                              and args.hp.multi_gpu.rank % ngpus_per_node == 0):
         args.log_name = 'logger/{}_{}_{}'.format(args.hp.arch,
                                                  args.hp.log_name, get_current_time())
         writer = SummaryWriter(args.log_name)
+        with open('{}/{}.prototxt'.format(args.log_name, args.arch), 'w') as wf:
+            wf.write(str(args.hp))
+        with open('{}/{}.txt'.format(args.log_name, args.arch), 'w') as wf:
+            wf.write(str(model))
         return writer
     return None
 
@@ -376,10 +380,10 @@ def get_model_info(model, args, input_size=(3, 224, 224)):
             model, input_size, as_strings=True, print_per_layer_stat=True, ost=f)
     print('{:<30}  {:<8}'.format('Computational complexity: ', flops))
     print('{:<30}  {:<8}'.format('Number of parameters: ', params))
-    with open('{}/{}.txt'.format(args.log_name, args.arch), 'w') as wf:
-        wf.write(str(model))
-    with open('{}/{}.prototxt'.format(args.log_name, args.arch), 'w') as wf:
-        wf.write(str(args.hp))
+    # with open('{}/{}.txt'.format(args.log_name, args.arch), 'w') as wf:
+    #     wf.write(str(model))
+    # with open('{}/{}.prototxt'.format(args.log_name, args.arch), 'w') as wf:
+    #     wf.write(str(args.hp))
     # summary(model, input_size)
     if args.hp.export_onnx:
         dummy_input = torch.randn(1, input_size[0], input_size[1], input_size[2], requires_grad=True).cuda(args.gpu)

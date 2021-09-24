@@ -98,17 +98,6 @@ def truncation(fp_data, nbits=8):
     return q_data, qcode
 
 
-def round_cus(t, inplace=False):
-    tt = t.clone()
-    tt[tt > 0] = 1.0
-    tt[tt < 0] = -1.0 + 2 ** -16
-    temp = (t + 0.5 * tt).type(torch.int32).type_as(t)
-    if inplace:
-        t.copy_(temp)
-        return t
-    return temp
-
-
 def get_default_kwargs_q(kwargs_q, layer_type):
     default = {
         'nbits': 4
@@ -120,7 +109,7 @@ def get_default_kwargs_q(kwargs_q, layer_type):
         pass
     elif isinstance(layer_type, _ActQ):
         default.update({
-            'signed': True})
+            'signed': 'Auto'})
     else:
         assert NotImplementedError
         return
@@ -149,6 +138,9 @@ class _Conv2dQ(nn.Conv2d):
 
     def add_param(self, param_k, param_v):
         self.kwargs_q[param_k] = param_v
+
+    def set_bit(self, nbits):
+        self.kwargs_q['nbits'] = nbits
 
     def extra_repr(self):
         s_prefix = super(_Conv2dQ, self).extra_repr()
@@ -186,12 +178,15 @@ class _ActQ(nn.Module):
         if self.nbits < 0:
             self.register_parameter('alpha', None)
             return
-        self.signed = kwargs_q['signed']
+        # self.signed = kwargs_q['signed']
         self.alpha = Parameter(torch.Tensor(1))
         self.register_buffer('init_state', torch.zeros(1))
 
     def add_param(self, param_k, param_v):
         self.kwargs_q[param_k] = param_v
+
+    def set_bit(self, nbits):
+        self.kwargs_q['nbits'] = nbits
 
     def extra_repr(self):
         # s_prefix = super(_ActQ, self).extra_repr()

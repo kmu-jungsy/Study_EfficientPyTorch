@@ -37,7 +37,7 @@ class FunLSQ(torch.autograd.Function):
         indicate_big = (q_w > Qp).float()
         indicate_middle = torch.ones(indicate_small.shape).to(indicate_small.device) - indicate_small - indicate_big
         grad_alpha = ((indicate_small * Qn + indicate_big * Qp + indicate_middle * (
-                -q_w + q_w.round())) * grad_weight * g).sum().unsqueeze(dim=0)
+            -q_w + q_w.round())) * grad_weight * g).sum().unsqueeze(dim=0)
         grad_weight = indicate_middle * grad_weight
         # The following operation can make sure that alpha is always greater than zero in any case and can also
         # suppress the update speed of alpha. (Personal understanding)
@@ -59,12 +59,11 @@ def round_pass(x):
 
 class Conv2dLSQ(_Conv2dQ):
     def __init__(self, in_channels, out_channels, kernel_size, stride=1,
-                 padding=0, dilation=1, groups=1, bias=True, nbits=4,
-                 mode=Qmodes.layer_wise):
+                 padding=0, dilation=1, groups=1, bias=True, nbits_w=8, **kwargs):
         super(Conv2dLSQ, self).__init__(
             in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size,
             stride=stride, padding=padding, dilation=dilation, groups=groups, bias=bias,
-            nbits=nbits, mode=mode)
+            nbits=nbits_w)
 
     def forward(self, x):
         if self.alpha is None:
@@ -105,8 +104,9 @@ class Conv2dLSQ(_Conv2dQ):
 
 
 class LinearLSQ(_LinearQ):
-    def __init__(self, in_features, out_features, bias=True, nbits=4):
-        super(LinearLSQ, self).__init__(in_features=in_features, out_features=out_features, bias=bias, nbits=nbits)
+    def __init__(self, in_features, out_features, bias=True, nbits_w=4, **kwargs):
+        super(LinearLSQ, self).__init__(in_features=in_features,
+                                        out_features=out_features, bias=bias, nbits=nbits_w)
 
     def forward(self, x):
         if self.alpha is None:
@@ -133,24 +133,36 @@ class LinearLSQ(_LinearQ):
 
 
 class ActLSQ(_ActQ):
-    def __init(self, nbits=4, signed=False):
-        super(ActLSQ, self).__init(nbits=nbits, signed=signed)
+    def __init__(self, nbits_a=4, **kwargs):
+        super(ActLSQ, self).__init__(nbits=nbits_a)
 
     def forward(self, x):
         if self.alpha is None:
             return x
-        if self.signed:
+
+        if self.training and self.init_state == 0:
+            # The init alpha for activation is very very important as the experimental results shows.
+            # Please select a init_rate for activation.
+            # self.alpha.data.copy_(x.max() / 2 ** (self.nbits - 1) * self.init_rate)
+            if x.min() < -1e-5:
+                self.kwargs_q['signed'] = True
+            else:
+                self.kwargs_q['signed'] = False
+            if self.kwargs_q['signed']:
+                Qn = -2 ** (self.nbits - 1)
+                Qp = 2 ** (self.nbits - 1) - 1
+            else:
+                Qn = 0
+                Qp = 2 ** self.nbits - 1
+            self.alpha.data.copy_(2 * x.abs().mean() / math.sqrt(Qp))
+            self.init_state.fill_(1)
+
+        if self.kwargs_q['signed']:
             Qn = -2 ** (self.nbits - 1)
             Qp = 2 ** (self.nbits - 1) - 1
         else:
             Qn = 0
             Qp = 2 ** self.nbits - 1
-        if self.training and self.init_state == 0:
-            # The init alpha for activation is very very important as the experimental results shows.
-            # Please select a init_rate for activation.
-            # self.alpha.data.copy_(x.max() / 2 ** (self.nbits - 1) * self.init_rate)
-            self.alpha.data.copy_(2 * x.abs().mean() / math.sqrt(Qp))
-            self.init_state.fill_(1)
 
         g = 1.0 / math.sqrt(x.numel() * Qp)
 

@@ -1,3 +1,3 @@
 from .bn_fusion import *
 from .hook_function import *
-from .replace_conv import *
+from .replace_module import *

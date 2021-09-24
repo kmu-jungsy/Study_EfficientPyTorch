@@ -25,6 +25,8 @@ multi_gpu {
 }
 weight: ""
 qmode: layer_wise
+nbits_w: 4
+nbits_a: 4
 warmup {
   epochs: 10
   multiplier: 10.0

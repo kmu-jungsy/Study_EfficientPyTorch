@@ -42,6 +42,8 @@ def gene_base_template():
     hyper.multi_gpu.multiprocessing_distributed = hyper.multi_gpu.multiprocessing_distributed
 
     hyper.qmode = hyper.qmode
+    hyper.nbits_w = hyper.nbits_w
+    hyper.nbits_a = hyper.nbits_a
 
     hyper.warmup.epochs = hyper.warmup.epochs
     hyper.warmup.multiplier = hyper.warmup.multiplier

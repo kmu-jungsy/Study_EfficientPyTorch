@@ -1,4 +1,4 @@
-import models.mnist as mnist_extra_models
+import models.cifar10 as cifar10_extra_models
 import torch.backends.cudnn as cudnn
 import torch.distributed as dist
 import torch.nn as nn
@@ -42,14 +42,17 @@ def main_worker(gpu, ngpus_per_node, args):
     else:
         print("=> creating model '{}'".format(args.hp.arch))
     if args.hp.model_source == eppb.HyperParam.ModelSource.Local:
-        model = mnist_extra_models.__dict__[args.hp.arch](pretrained=args.hp.pretrained)
+        model = cifar10_extra_models.__dict__[args.hp.arch](pretrained=args.hp.pretrained)
     else:
         raise NotImplementedError
 
     print('model:\n=========\n')
     display_model(model)
 
-    process_model(model, args)
+    process_model(model, args, replace_first_layer=True, replace_map={
+        'Conv2d': [my_nn.ActLSQ, my_nn.Conv2dLSQ],
+        'Linear': [my_nn.ActLSQ, my_nn.LinearLSQ],
+    }, nbits_w=args.hp.nbits_w, nbits_a=args.hp.nbits_a)
 
     # parallel and multi-gpu
     model = distributed_model(model, ngpus_per_node, args)
@@ -60,8 +63,9 @@ def main_worker(gpu, ngpus_per_node, args):
     cudnn.benchmark = True
 
     df = DataloaderFactory(args)
-    train_loader, val_loader = df.product_train_val_loader(df.mnist)
+    train_loader, val_loader, train_sampler = df.product_train_val_loader(df.cifar10)
     writer = get_summary_writer(args, ngpus_per_node, model)
+    
     if args.hp.evaluate:
         if writer is not None:
             get_model_info(model, args, val_loader)

@@ -61,7 +61,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
     df = DataloaderFactory(args)
     train_loader, val_loader, train_sampler = df.product_train_val_loader(df.cifar10)
-    writer = get_summary_writer(args, ngpus_per_node)
+    writer = get_summary_writer(args, ngpus_per_node, model)
     if args.hp.evaluate:
         if writer is not None:
             get_model_info(model, args, val_loader)
