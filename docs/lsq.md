@@ -4,6 +4,12 @@
 |----------|------|------|------|------|
 | vggsmall | 93.8 | 93.7 | 92.5 | 86   |
 
+```bash
+./run_cli.sh examples/classifier_cifar10/prototxt/vggsmall_lsq_w4a4_single_gpu.prototxt
+./run_cli.sh examples/classifier_cifar10/prototxt/vggsmall_lsq_w3a3_single_gpu.prototxt
+./run_cli.sh examples/classifier_cifar10/prototxt/vggsmall_lsq_w2a2_single_gpu.prototxt
+```
+
 <img src="images/cifar10_vggsmall_lsq.png" width="70%" height="70%">
 
 
