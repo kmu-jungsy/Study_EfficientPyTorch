@@ -82,15 +82,6 @@ enum Qmode{
     kernel_wise = 2;
 }
 
-enum Pmode{
-    // Quantization modes
-    pixel_wise = 1;
-    // kernel or channel wise
-    channel_wise = 2;
-    // npu pattern pruning
-    pattern_npu = 3;
-}
-
 message MultiGPU {
     // number of nodes for distributed training
     optional int32 world_size = 1 [default=-1];

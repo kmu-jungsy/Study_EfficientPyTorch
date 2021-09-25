@@ -1,4 +1,12 @@
 # LSQ
+
+| cifar10  | fp32 | w4a4 | w3a3 | w2a2 |
+|----------|------|------|------|------|
+| vggsmall | 93.8 | 93.7 | 92.5 | 86   |
+
+<img src="images/cifar10_vggsmall_lsq.png" width="70%" height="70%">
+
+
 | **LSQ**  | fp32         | w4a4 | w3a3 | w2a2 | w8a8(1epoch, quantize data) |
 |----------|--------------|------|------|------|--------------|
 | AlexNet  | 56.55, 79.09 | **56.96**, 79.46 [√](https://tensorboard.dev/experiment/MNSkwpg9SJySk201OqJLhw/) | 55.31, 78.59 |  51.18, 75.38 | |
