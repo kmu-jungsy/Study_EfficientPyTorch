@@ -1,6 +1,6 @@
 main_file: "examples/classifier_imagenet/main_lsq.py"
 arch: "alexnet"
-log_name: "lsq_w4a4"
+log_name: "lsq_w3a3"
 debug: false
 data: "/home/zhaoxiandong/datasets/data.imagenet"
 lr: 0.01
