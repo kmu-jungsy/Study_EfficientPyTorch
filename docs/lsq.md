@@ -12,6 +12,14 @@
 
 <img src="images/cifar10_vggsmall_lsq.png" width="70%" height="70%">
 
+> The last layer is quantized.
+
+| **LSQ**  | fp32         | w4a4 | w3a3 | 
+|----------|--------------|------|------|
+| AlexNet  | 56.55, 79.09 | 56.36| 48.21|
+
+<img src="images/alexnet_lsq.png" width="70%" height="70%">
+
 
 | **LSQ**  | fp32         | w4a4 | w3a3 | w2a2 | w8a8(1epoch, quantize data) |
 |----------|--------------|------|------|------|--------------|
