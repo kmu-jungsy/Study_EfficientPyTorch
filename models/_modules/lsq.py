@@ -146,10 +146,8 @@ class ActLSQ(_ActQ):
             # Please select a init_rate for activation.
             # self.alpha.data.copy_(x.max() / 2 ** (self.nbits - 1) * self.init_rate)
             if x.min() < -1e-5:
-                self.kwargs_q['signed'] = True
-            else:
-                self.kwargs_q['signed'] = False
-            if self.kwargs_q['signed']:
+                self.signed.data.fill_(1)
+            if self.signed == 1:
                 Qn = -2 ** (self.nbits - 1)
                 Qp = 2 ** (self.nbits - 1) - 1
             else:
@@ -158,7 +156,7 @@ class ActLSQ(_ActQ):
             self.alpha.data.copy_(2 * x.abs().mean() / math.sqrt(Qp))
             self.init_state.fill_(1)
 
-        if self.kwargs_q['signed']:
+        if self.signed == 1:
             Qn = -2 ** (self.nbits - 1)
             Qp = 2 ** (self.nbits - 1) - 1
         else:

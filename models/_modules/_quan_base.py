@@ -108,8 +108,9 @@ def get_default_kwargs_q(kwargs_q, layer_type):
     elif isinstance(layer_type, _LinearQ):
         pass
     elif isinstance(layer_type, _ActQ):
-        default.update({
-            'signed': 'Auto'})
+        pass
+        # default.update({
+        #     'signed': 'Auto'})
     else:
         assert NotImplementedError
         return
@@ -181,6 +182,7 @@ class _ActQ(nn.Module):
         # self.signed = kwargs_q['signed']
         self.alpha = Parameter(torch.Tensor(1))
         self.register_buffer('init_state', torch.zeros(1))
+        self.register_buffer('signed', torch.zeros(1))
 
     def add_param(self, param_k, param_v):
         self.kwargs_q[param_k] = param_v
