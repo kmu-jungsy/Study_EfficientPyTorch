@@ -20,4 +20,3 @@ kaleido
 plotly
 pytorchcv
 protobuf==3.12.2
-pytorch
